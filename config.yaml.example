@@ -1,0 +1,105 @@
+model:
+  name: yolov8n.pt
+  confidence_threshold: 0.25
+  person_class_id: 0
+device:
+  type: null
+paths:
+  input_video: data/test_clip.mp4
+  output_dir: output
+  logs_dir: logs
+  models_dir: models
+detection:
+  frame_skip: 1
+  min_confidence: 0.25
+tracking:
+  max_distance: 50.0
+  max_frames_to_skip: 5
+logging:
+  fps_log_file: logs/fps.log
+  detection_log_file: output/detections.json
+  log_interval: 30
+video:
+  buffer_size: 1
+  read_timeout: 5
+test_clips:
+  occupied: data/clips/occupied.mp4
+  empty: data/clips/empty.mp4
+  quiet_reader: data/clips/quiet-reader.mp4
+appliance:
+  enabled: true
+  frame_skip: 20
+  wattage:
+    light: 40
+    ceiling_fan: 65
+    monitor: 35
+  electricity_rate: 0.12
+  electricity_rate_inr: 6.5
+  co2_factor_kg_per_kwh: 0.71
+  roboflow:
+    api_key: YOUR_ROBOFLOW_API_KEY
+    light_model: coms-room-light-63vyv/1
+    fan_model: ceiling-fan-detection-epfsk/1
+    monitor_model: monitor_detection-uj19t-zqnlq/1
+  use_temp_files: true
+privacy:
+  enabled: true
+  blur_method: pixelate
+  blur_level: 99
+  pixelate_blocks: 12
+  use_person_bbox_fallback: true
+  skip_frames: 3
+  storage:
+    save_raw: false
+    save_anonymized: false
+    raw_dir: data/raw
+    anonymized_dir: data/anonymized
+    save_every_n_frames: 10
+alerts:
+  enabled: true
+  initial_delay_seconds: 60
+  repeat_interval_seconds: 600
+  twilio:
+    enabled: false
+    account_sid: YOUR_TWILIO_ACCOUNT_SID
+    auth_token: YOUR_TWILIO_AUTH_TOKEN
+    from_number: '+1234567890'
+    to_number: '+1234567890'
+    whatsapp:
+      enabled: false
+      from_number: whatsapp:+1234567890
+      content_sid: YOUR_CONTENT_SID
+  storage:
+    enabled: true
+    events_file: output/waste_events.json
+    thumbnails_dir: data/alerts
+    thumbnail_width: 320
+  database:
+    enabled: true
+    db_path: data/wattwatch.db
+microzone:
+  enabled: true
+  rows: 4
+  cols: 4
+  decay: 0.98
+  energy_savings_factor: 0.25
+intensity_calibration:
+  enabled: true
+  day_start_hour: 6
+  day_end_hour: 18
+  rooms:
+    default:
+      room_id: default
+      day:
+        dark_threshold: 80
+        medium_threshold: 160
+      night:
+        dark_threshold: 40
+        medium_threshold: 100
+      last_calibrated: null
+      sample_count: 0
+  auto_calibrate:
+    enabled: true
+    sample_frames: 30
+    min_samples: 10
+    sensitivity: 1.0
