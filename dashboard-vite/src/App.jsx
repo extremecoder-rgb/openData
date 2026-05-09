@@ -163,10 +163,10 @@ function CalibrationStudio({ room1, room2, calibrationData, onUpdate, onRefresh,
               
               {/* Threshold Markers */}
               <div className="threshold-marker dark" style={{ left: `${(dark/255)*100}%` }}>
-                <span className="threshold-label" style={{ color: '#f87171' }}>DARK_{dark}</span>
+                <span className="threshold-label" style={{ color: 'var(--waste-red)' }}>DARK_{dark}</span>
               </div>
               <div className="threshold-marker medium" style={{ left: `${(medium/255)*100}%` }}>
-                <span className="threshold-label" style={{ color: '#60a5fa' }}>MED_{medium}</span>
+                <span className="threshold-label" style={{ color: '#3b82f6' }}>MED_{medium}</span>
               </div>
             </div>
           </div>
@@ -232,7 +232,6 @@ function CalibrationStudio({ room1, room2, calibrationData, onUpdate, onRefresh,
             <button 
               className={`btn ${saved ? 'btn-primary' : 'btn-danger'}`} 
               onClick={handleSave}
-              style={{ background: saved ? '' : '#ff003c', color: '#fff' }}
             >
               {saved ? 'SETTINGS_APPLIED' : 'COMMIT_CHANGES'}
             </button>
@@ -243,11 +242,11 @@ function CalibrationStudio({ room1, room2, calibrationData, onUpdate, onRefresh,
             <div style={{ fontSize: '11px', lineHeight: '1.8' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span style={{ opacity: 0.6 }}>Current Lum:</span>
-                <span style={{ color: 'var(--accent-neon)' }}>{currentRoom.avgBrightness?.toFixed(1)}</span>
+                <span style={{ color: 'var(--accent-color)', fontWeight: '700' }}>{currentRoom.avgBrightness?.toFixed(1)}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span style={{ opacity: 0.6 }}>Classification:</span>
-                <span style={{ color: currentRoom.avgBrightness < dark ? '#f87171' : currentRoom.avgBrightness < medium ? '#60a5fa' : '#4ade80' }}>
+                <span style={{ color: currentRoom.avgBrightness < dark ? 'var(--waste-red)' : currentRoom.avgBrightness < medium ? '#3b82f6' : 'var(--secure-green)' }}>
                   {currentRoom.avgBrightness < dark ? 'DARK' : currentRoom.avgBrightness < medium ? 'MEDIUM' : 'BRIGHT'}
                 </span>
               </div>
@@ -615,26 +614,26 @@ function App() {
 
           <main className="main-viewport">
             <div style={{ padding: '20px' }}>
-              <div className="glass-card" style={{ background: 'linear-gradient(135deg, #1a3a2a 0%, #0d2818 100%)' }}>
-                <h4 className="card-title">◈ ANNUAL_PROJECTIONS</h4>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '20px', marginTop: '16px' }}>
-                  <div style={{ textAlign: 'center', padding: '20px', background: 'rgba(0,0,0,0.2)', borderRadius: '8px' }}>
-                    <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#4ade80' }}>
+              <div className="glass-card" style={{ background: 'var(--accent-color)', color: '#fff' }}>
+                <h4 className="card-title" style={{ color: 'rgba(255,255,255,0.7)' }}>◈ ANNUAL_PROJECTIONS</h4>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '24px', marginTop: '24px' }}>
+                  <div style={{ textAlign: 'center', padding: '24px', background: 'rgba(255,255,255,0.1)', borderRadius: '12px' }}>
+                    <div style={{ fontSize: '36px', fontWeight: 'bold', color: '#fff' }}>
                       {energyDashboard.projections?.kwh_per_day || 0}
                     </div>
-                    <div style={{ fontSize: '12px', opacity: 0.7, marginTop: '8px' }}>kWh / DAY</div>
+                    <div style={{ fontSize: '12px', opacity: 0.8, marginTop: '8px', fontWeight: '600' }}>kWh / DAY</div>
                   </div>
-                  <div style={{ textAlign: 'center', padding: '20px', background: 'rgba(0,0,0,0.2)', borderRadius: '8px' }}>
-                    <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#fbbf24' }}>
+                  <div style={{ textAlign: 'center', padding: '24px', background: 'rgba(255,255,255,0.1)', borderRadius: '12px' }}>
+                    <div style={{ fontSize: '36px', fontWeight: 'bold', color: '#fff' }}>
                       ₹{energyDashboard.projections?.inr_per_year || 0}
                     </div>
-                    <div style={{ fontSize: '12px', opacity: 0.7, marginTop: '8px' }}>SAVINGS / YEAR (INR)</div>
+                    <div style={{ fontSize: '12px', opacity: 0.8, marginTop: '8px', fontWeight: '600' }}>SAVINGS / YEAR</div>
                   </div>
-                  <div style={{ textAlign: 'center', padding: '20px', background: 'rgba(0,0,0,0.2)', borderRadius: '8px' }}>
-                    <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#60a5fa' }}>
+                  <div style={{ textAlign: 'center', padding: '24px', background: 'rgba(255,255,255,0.1)', borderRadius: '12px' }}>
+                    <div style={{ fontSize: '36px', fontWeight: 'bold', color: '#fff' }}>
                       {energyDashboard.projections?.co2_per_year_kg || 0}
                     </div>
-                    <div style={{ fontSize: '12px', opacity: 0.7, marginTop: '8px' }}>kg CO₂ / YEAR</div>
+                    <div style={{ fontSize: '12px', opacity: 0.8, marginTop: '8px', fontWeight: '600' }}>kg CO₂ / YEAR</div>
                   </div>
                 </div>
               </div>
@@ -680,7 +679,7 @@ function App() {
                 <p><span style={{ opacity: 0.6 }}>Rate (INR):</span> ₹{energyDashboard.config?.electricity_rate_inr || 6.50}/kWh</p>
                 <p><span style={{ opacity: 0.6 }}>Rate (INR):</span> ₹{energyDashboard.config?.electricity_rate_inr || 6.50}/kWh</p>
                 <p><span style={{ opacity: 0.6 }}>CO₂ Factor:</span> {energyDashboard.config?.co2_factor_kg_per_kwh || 0.71} kg/kWh</p>
-                <hr style={{ borderColor: 'rgba(255,255,255,0.1)', margin: '12px 0' }} />
+                <hr style={{ borderColor: 'var(--border-color)', margin: '16px 0' }} />
                 <p><span style={{ opacity: 0.6 }}>Total Load:</span> {energyDashboard.config?.total_appliance_watts || 140}W</p>
                 <p style={{ fontSize: '10px', opacity: 0.5 }}>Light: {energyDashboard.config?.wattage_breakdown?.light || 40}W | Fan: {energyDashboard.config?.wattage_breakdown?.ceiling_fan || 65}W | Monitor: {energyDashboard.config?.wattage_breakdown?.monitor || 35}W</p>
               </div>
@@ -705,19 +704,19 @@ function App() {
 
           <main className="main-viewport">
             <div style={{ padding: '20px' }}>
-              <div className="glass-card" style={{ background: 'linear-gradient(135deg, #1a2a3a 0%, #0d1828 100%)' }}>
-                <h4 className="card-title">◈ PRIVACY_MEASURES</h4>
-                <div style={{ marginTop: '16px' }}>
+              <div className="glass-card" style={{ background: 'var(--accent-color)', color: '#fff' }}>
+                <h4 className="card-title" style={{ color: 'rgba(255,255,255,0.7)' }}>◈ PRIVACY_MEASURES</h4>
+                <div style={{ marginTop: '24px' }}>
                   {Object.entries(privacyAssurance.measures || {}).map(([key, measure]) => (
-                    <div key={key} style={{ display: 'flex', alignItems: 'center', padding: '12px', background: 'rgba(0,0,0,0.2)', borderRadius: '6px', marginBottom: '8px' }}>
+                    <div key={key} style={{ display: 'flex', alignItems: 'center', padding: '16px', background: 'rgba(255,255,255,0.1)', borderRadius: '12px', marginBottom: '12px' }}>
                       <span style={{ 
-                        width: '10px', height: '10px', borderRadius: '50%', 
-                        background: measure.status === 'active' || measure.status === 'enabled' ? '#4ade80' : '#f87171',
-                        marginRight: '12px'
+                        width: '12px', height: '12px', borderRadius: '50%', 
+                        background: measure.status === 'active' || measure.status === 'enabled' ? 'var(--secure-green)' : 'var(--waste-red)',
+                        marginRight: '16px'
                       }} />
                       <div>
-                        <div style={{ fontWeight: 'bold', fontSize: '12px' }}>{key.replace('_', ' ').toUpperCase()}</div>
-                        <div style={{ fontSize: '11px', opacity: 0.7 }}>{measure.description || measure.status}</div>
+                        <div style={{ fontWeight: '700', fontSize: '14px' }}>{key.replace('_', ' ').toUpperCase()}</div>
+                        <div style={{ fontSize: '12px', opacity: 0.8 }}>{measure.description || measure.status}</div>
                       </div>
                     </div>
                   ))}
@@ -728,7 +727,7 @@ function App() {
                 <h4 className="card-title">◈ STAKEHOLDER_COMMITMENTS</h4>
                 <ul style={{ marginTop: '12px', paddingLeft: '20px', fontSize: '12px', lineHeight: '2' }}>
                   {(privacyAssurance.stakeholder_commitments || []).map((commitment, idx) => (
-                    <li key={idx} style={{ color: '#4ade80' }}>✓ {commitment}</li>
+                    <li key={idx} style={{ color: 'var(--secure-green)' }}>✓ {commitment}</li>
                   ))}
                 </ul>
               </div>
@@ -739,20 +738,20 @@ function App() {
                   {Object.entries(privacyAssurance.compliance || {}).map(([key, value]) => (
                     <div key={key} style={{ 
                       padding: '12px 20px', 
-                      background: value ? 'rgba(74, 222, 128, 0.2)' : 'rgba(248, 113, 113, 0.2)',
-                      borderRadius: '6px',
-                      border: `1px solid ${value ? '#4ade80' : '#f87171'}`
+                      background: value ? '#f0fdf4' : '#fef2f2',
+                      borderRadius: '8px',
+                      border: `1px solid ${value ? 'var(--secure-green)' : 'var(--waste-red)'}`
                     }}>
-                      <span style={{ fontSize: '12px' }}>{key.replace('_', ' ').toUpperCase()}</span>
+                      <span style={{ fontSize: '12px', fontWeight: '600' }}>{key.replace('_', ' ').toUpperCase()}</span>
                     </div>
                   ))}
                 </div>
               </div>
 
-              <div className="glass-card" style={{ marginTop: '16px', background: 'rgba(0,0,0,0.3)' }}>
+              <div className="glass-card" style={{ marginTop: '16px', background: '#f9fafb' }}>
                 <h4 className="card-title">◈ DATA_RETENTION</h4>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginTop: '12px', fontSize: '11px' }}>
-                  <div><span style={{ opacity: 0.6 }}>Raw Images:</span><br /><span style={{ color: '#4ade80' }}>{privacyAssurance.measures?.data_retention?.config?.raw_images || 'Never stored'}</span></div>
+                  <div><span style={{ opacity: 0.6 }}>Raw Images:</span><br /><span style={{ color: 'var(--secure-green)', fontWeight: '600' }}>{privacyAssurance.measures?.data_retention?.config?.raw_images || 'Never stored'}</span></div>
                   <div><span style={{ opacity: 0.6 }}>Thumbnails:</span><br /><span>{privacyAssurance.measures?.data_retention?.config?.anonymized_thumbnails || '30 days'}</span></div>
                   <div><span style={{ opacity: 0.6 }}>Detection Logs:</span><br /><span>90 days</span></div>
                 </div>
@@ -764,9 +763,9 @@ function App() {
             <div className="glass-card">
               <h4 className="card-title">◈ VERIFICATION</h4>
               <div style={{ fontSize: '11px', lineHeight: '1.8' }}>
-                <p><span style={{ opacity: 0.6 }}>Status:</span> <span style={{ color: '#4ade80' }}>VERIFIED</span></p>
+                <p><span style={{ opacity: 0.6 }}>Status:</span> <span style={{ color: 'var(--secure-green)', fontWeight: '600' }}>VERIFIED</span></p>
                 <p><span style={{ opacity: 0.6 }}>Last Checked:</span><br />{privacyAssurance.last_verified || 'N/A'}</p>
-                <hr style={{ borderColor: 'rgba(255,255,255,0.1)', margin: '12px 0' }} />
+                <hr style={{ borderColor: 'var(--border-color)', margin: '16px 0' }} />
                 <p style={{ fontSize: '10px', opacity: 0.7 }}>
                   This system processes all data locally with no cloud transmission. 
                   All faces are automatically anonymized before any storage.
@@ -808,9 +807,9 @@ function App() {
             {!browsedTable ? (
               /* Schema View */
               <div style={{ padding: '20px' }}>
-                <div className="glass-card" style={{ borderLeft: '3px solid var(--accent-neon)' }}>
+                <div className="glass-card" style={{ borderLeft: '4px solid var(--accent-color)' }}>
                   <h4 className="card-title">◈ ACTIVE_STORAGE_LOCATION</h4>
-                  <div style={{ background: 'rgba(0,0,0,0.3)', padding: '12px', borderRadius: '4px', fontFamily: 'monospace', fontSize: '11px', color: 'var(--accent-neon)' }}>
+                  <div style={{ background: '#f3f4f6', padding: '16px', borderRadius: '8px', fontFamily: 'var(--mono)', fontSize: '11px', color: 'var(--text-primary)', border: '1px solid var(--border-color)' }}>
                     {dbInfo.db_path || 'data/wattwatch.db'}
                   </div>
                 </div>
@@ -829,7 +828,7 @@ function App() {
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
                     {(dbSchema.tables || []).map((table) => (
                       <div key={table.name} className="glass-card" style={{ padding: '0' }}>
-                        <div style={{ background: 'rgba(255,255,255,0.05)', padding: '8px 12px', fontSize: '10px', fontWeight: 'bold', display: 'flex', justifyContent: 'space-between' }}>
+                        <div style={{ background: '#f9fafb', padding: '10px 16px', fontSize: '11px', fontWeight: '700', display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border-color)' }}>
                           <span>TABLE: {table.name.toUpperCase()}</span>
                         </div>
                         <div style={{ padding: '10px' }}>
@@ -862,20 +861,18 @@ function App() {
                   ) : (
                     <div style={{ overflow: 'auto', flex: 1 }}>
                       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '10px', textAlign: 'left' }}>
-                        <thead style={{ position: 'sticky', top: 0, background: '#111', zIndex: 10 }}>
+                        <thead style={{ position: 'sticky', top: 0, background: '#f3f4f6', zIndex: 10 }}>
                           <tr>
                             {Object.keys(browsedRows[0] || {}).map(k => (
-                              <th key={k} style={{ padding: '10px', borderBottom: '1px solid rgba(255,255,255,0.1)', opacity: 0.6 }}>{k.toUpperCase()}</th>
+                              <th key={k} style={{ padding: '12px', borderBottom: '1px solid var(--border-color)', color: 'var(--text-secondary)', fontSize: '11px', fontWeight: '600' }}>{k.toUpperCase()}</th>
                             ))}
                           </tr>
                         </thead>
                         <tbody>
                           {browsedRows.map((row, i) => (
-                            <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', background: i % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'transparent' }}>
+                            <tr key={i} style={{ borderBottom: '1px solid var(--border-color)', background: i % 2 === 0 ? '#fff' : '#f9fafb' }}>
                               {Object.values(row).map((v, j) => (
-                                <td key={j} style={{ padding: '8px 10px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '150px' }}>
-                                  {typeof v === 'number' && v > 1000000000 ? new Date(v * 1000).toLocaleTimeString() : String(v)}
-                                </td>
+                                <td key={j} style={{ padding: '12px', color: 'var(--text-primary)', fontSize: '11px' }}>{typeof v === 'number' && v > 1000000000 ? new Date(v * 1000).toLocaleTimeString() : String(v)}</td>
                               ))}
                             </tr>
                           ))}
@@ -892,9 +889,9 @@ function App() {
             <div className="glass-card">
               <h4 className="card-title">◈ DB_HEALTH</h4>
               <div style={{ fontSize: '11px', lineHeight: '1.8' }}>
-                <p><span style={{ opacity: 0.6 }}>IO_STATUS:</span> <span style={{ color: '#4ade80' }}>OPTIMIZED</span></p>
+                <p><span style={{ opacity: 0.6 }}>IO_STATUS:</span> <span style={{ color: 'var(--secure-green)', fontWeight: '600' }}>OPTIMIZED</span></p>
                 <p><span style={{ opacity: 0.6 }}>JOURNAL:</span> {dbInfo.journal_mode}</p>
-                <hr style={{ borderColor: 'rgba(255,255,255,0.1)', margin: '12px 0' }} />
+                <hr style={{ borderColor: 'var(--border-color)', margin: '16px 0' }} />
                 <p style={{ fontSize: '9px', opacity: 0.5 }}>
                   The browser displays the last 50 entries. Timestamps are automatically converted to local time for readability.
                 </p>
