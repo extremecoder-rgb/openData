@@ -5,7 +5,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { getDatasetResults, type Dataset, type AuditLog } from "../../../lib/api";
+import { getDatasetResults, downloadComplianceReport, type Dataset, type AuditLog } from "../../../lib/api";
 
 const statusColors: Record<string, string> = {
   uploaded: "bg-yellow-100 text-yellow-800",
@@ -23,6 +23,24 @@ export default function DatasetDetail() {
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [downloading, setDownloading] = useState(false);
+
+  const handleDownload = async () => {
+    setDownloading(true);
+    try {
+      const blob = await downloadComplianceReport(id);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `compliance-report-${id}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      alert("Failed to download report");
+    } finally {
+      setDownloading(false);
+    }
+  };
 
   useEffect(() => {
     getDatasetResults(id)
@@ -51,7 +69,7 @@ export default function DatasetDetail() {
           {new Date(dataset.created_at).toLocaleDateString()}
         </p>
 
-        <div className="mb-6">
+        <div className="mb-6 flex items-center gap-4">
           <span
             className={`px-3 py-1 rounded-full text-sm ${
               statusColors[dataset.status] || "bg-gray-100"
@@ -59,6 +77,13 @@ export default function DatasetDetail() {
           >
             {dataset.status}
           </span>
+          <button
+            onClick={handleDownload}
+            disabled={downloading || dataset.status !== "done"}
+            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+          >
+            {downloading ? "Generating..." : "Download Compliance PDF"}
+          </button>
         </div>
 
         <h2 className="text-xl font-semibold mb-4">Audit Trail</h2>

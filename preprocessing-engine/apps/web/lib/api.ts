@@ -46,6 +46,12 @@ export async function getDatasetResults(id: string): Promise<DatasetResults> {
   return res.json();
 }
 
+export async function downloadComplianceReport(id: string): Promise<Blob> {
+  const res = await fetch(`${API_URL}/datasets/${id}/compliance-report`);
+  if (!res.ok) throw new Error("Failed to fetch compliance report");
+  return res.blob();
+}
+
 export async function uploadDataset(file: File): Promise<Dataset> {
   const formData = new FormData();
   formData.append("file", file);
