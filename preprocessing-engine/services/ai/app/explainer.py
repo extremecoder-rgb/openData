@@ -4,7 +4,12 @@ import os
 import json
 from groq import Groq
 
-client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
+
+def _get_client():
+    api_key = os.environ.get("GROQ_API_KEY")
+    if not api_key:
+        raise RuntimeError("GROQ_API_KEY environment variable is not set")
+    return Groq(api_key=api_key)
 
 
 def generate_explanation(
@@ -31,6 +36,7 @@ Write a single concise sentence explaining WHY this strategy was chosen for this
 Then give a confidence score from 0.0 to 1.0.
 Respond in JSON: {{"reason": "...", "confidence": 0.xx}}
 """
+    client = _get_client()
     response = client.chat.completions.create(
         model="llama3-8b-8192",
         messages=[{"role": "user", "content": prompt}],

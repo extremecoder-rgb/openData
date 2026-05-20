@@ -6,6 +6,7 @@ import { QueueModule } from './queue/queue.module';
 import { UploadModule } from './upload/upload.module';
 import { DatasetModule } from './dataset/dataset.module';
 import { ComplianceModule } from './compliance/compliance.module';
+import { TrpcModule } from './trpc/trpc.module';
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { ComplianceModule } from './compliance/compliance.module';
     UploadModule,
     DatasetModule,
     ComplianceModule,
+    TrpcModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -55,22 +55,18 @@ async def root():
 
 @app.post("/profile")
 async def profile(req: ProfileRequest):
+    supabase = get_supabase_client()
+    dataset_id = req.r2_key.split("/")[-1].split("-")[0]
     try:
-        # Update status to profiling
-        supabase = get_supabase_client()
-        update_dataset_status(supabase, req.r2_key.split("/")[-1].split("-")[0], "profiling")
+        update_dataset_status(supabase, dataset_id, "profiling")
 
-        # Download CSV from R2
         df = download_csv_from_storage(req.r2_key)
-
-        # Extract meta-features
         profile = extract_meta_features(df)
 
-        # Update dataset with counts
         dataset_meta = profile.get("__dataset__", {})
         update_dataset_status(
             supabase,
-            req.r2_key.split("/")[-1].split("-")[0],
+            dataset_id,
             "done",
             row_count=dataset_meta.get("row_count"),
             column_count=dataset_meta.get("col_count"),
@@ -78,6 +74,10 @@ async def profile(req: ProfileRequest):
 
         return profile
     except Exception as e:
+        try:
+            update_dataset_status(supabase, dataset_id, "failed")
+        except Exception:
+            pass
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -87,27 +87,30 @@ async def preprocess(req: PreprocessRequest):
         supabase = get_supabase_client()
         dataset_id = req.r2_key.split("/")[-1].split("-")[0]
 
-        # 1. Download CSV from R2
         df = download_csv_from_storage(req.r2_key)
-
-        # 2. Extract meta-features
         meta_features = extract_meta_features(df)
 
-        # 3. Run RL agent
         from app.rl_agent.policy import select_action
         from app.rl_agent.environment import PreprocessingEnv
 
         env = PreprocessingEnv(df.copy(), meta_features, req.target_column)
+        original_columns = list(df.columns)
 
-        for col in df.columns:
+        for col in original_columns:
             if col == req.target_column:
                 continue
+            if col not in env.current_df.columns:
+                continue
+
             actions = select_action(meta_features, col)
             for action in actions:
-                reward, entry = env.step(col, action)
-                save_audit_log(supabase, dataset_id, entry)
+                try:
+                    reward, entry = env.step(col, action)
+                    save_audit_log(supabase, dataset_id, entry)
+                except Exception as step_err:
+                    logger.warning(f"Action {action} on column {col} failed: {step_err}")
+                    continue
 
-        # 4. Check for data leakage
         leakage_report = check_data_leakage(
             df, env.action_history, req.target_column
         )
@@ -127,4 +130,10 @@ async def preprocess(req: PreprocessRequest):
             "leakage_report": leakage_report,
         }
     except Exception as e:
+        dataset_id = req.r2_key.split("/")[-1].split("-")[0]
+        try:
+            supabase = get_supabase_client()
+            update_dataset_status(supabase, dataset_id, "failed")
+        except Exception:
+            pass
         raise HTTPException(status_code=500, detail=str(e))

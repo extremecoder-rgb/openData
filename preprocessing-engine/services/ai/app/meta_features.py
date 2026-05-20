@@ -5,6 +5,17 @@ import numpy as np
 from scipy import stats
 
 
+def _is_categorical(series: pd.Series) -> bool:
+    dtype = series.dtype
+    if isinstance(dtype, pd.CategoricalDtype):
+        return True
+    if dtype == "object":
+        n_unique = series.nunique()
+        total = len(series)
+        return n_unique < min(total * 0.5, 50) if total > 0 else False
+    return False
+
+
 def extract_meta_features(df: pd.DataFrame) -> dict:
     features = {}
     for col in df.columns:
@@ -13,8 +24,8 @@ def extract_meta_features(df: pd.DataFrame) -> dict:
             "dtype": str(series.dtype),
             "missing_pct": float(series.isna().mean()),
             "cardinality": int(series.nunique()),
-            "cardinality_ratio": float(series.nunique() / len(series)),
-            "is_categorical": series.dtype == "object",
+            "cardinality_ratio": float(series.nunique() / len(series)) if len(series) > 0 else 0.0,
+            "is_categorical": _is_categorical(series),
         }
         if pd.api.types.is_numeric_dtype(series):
             clean = series.dropna()
