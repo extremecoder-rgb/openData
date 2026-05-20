@@ -1,6 +1,6 @@
 # AGENTS.md — AI Preprocessing Engine
 > Full build plan for an Explainable Meta-Learning Data Preprocessing Engine
-> Stack: Next.js · NestJS · tRPC · FastAPI · TabPFN · RL Agent · PostgreSQL · Redis · Supabase · Cloudflare R2
+> Stack: Next.js · NestJS · tRPC · FastAPI · TabPFN · RL Agent · PostgreSQL · Redis · Supabase · Supabase Storage
 
 ---
 
@@ -76,7 +76,7 @@ preprocessing-engine/
   - `SUPABASE_URL`, `SUPABASE_ANON_KEY`
   - `UPSTASH_REDIS_URL`, `UPSTASH_REDIS_TOKEN`
   - `GROQ_API_KEY`
-  - `CLOUDFLARE_R2_BUCKET`, `R2_ACCESS_KEY`, `R2_SECRET_KEY`
+  - `SUPABASE_BUCKET_NAME`
 
 - [ ] Verify: `turbo dev` starts all three services concurrently
 
@@ -99,7 +99,7 @@ All three services run locally. `GET /health` returns 200 on NestJS and FastAPI.
 - [ ] Create `UploadModule` with a `POST /upload` endpoint
   - Accept multipart/form-data (use `@nestjs/platform-express` + `multer`)
   - Validate file type (CSV only), max size 50MB
-  - Upload raw file to Cloudflare R2 using AWS S3 SDK
+  - Upload raw file to Supabase Storage using Supabase JS SDK
   - Create a `dataset` record in Supabase (status: `uploaded`)
   - Push a `preprocess` job to BullMQ queue
 
@@ -129,7 +129,7 @@ create table datasets (
   id uuid primary key default gen_random_uuid(),
   user_id uuid references auth.users,
   filename text not null,
-  r2_key text not null,
+  r2_key text not null,   -- Stores the Supabase Storage key/path for compatibility
   status text default 'uploaded',   -- uploaded | profiling | processing | done | failed
   row_count int,
   column_count int,
@@ -161,7 +161,7 @@ create table user_corrections (
 ```
 
 ### Done When
-Upload a CSV via Postman → file appears in R2 → row in Supabase → job in BullMQ queue.
+Upload a CSV via Postman → file appears in Supabase Storage → row in Supabase → job in BullMQ queue.
 
 ---
 
@@ -171,7 +171,7 @@ Upload a CSV via Postman → file appears in R2 → row in Supabase → job in B
 ### FastAPI Tasks (`services/ai`)
 
 - [ ] Create `POST /profile` endpoint
-  - Input: R2 file key (FastAPI downloads it using boto3)
+  - Input: Storage file key (FastAPI downloads it using Supabase client storage API)
   - Output: `MetaFeatureProfile` JSON object
 
 - [ ] Build `meta_features.py` module
@@ -643,7 +643,7 @@ Full flow works: upload CSV → watch status update in real time → view audit 
 - [ ] Create `POST /datasets/:id/compliance-report`
   - Gathers initial dataset metadata, raw statistical profiles, audit logs, LLM explanations, confidence ratings, and user corrections.
   - Converts records into an automated JSON payload and renders an audit-ready, beautiful compliance PDF utilizing `pdfkit` or dynamic template rendering.
-  - Stores the generated report back into Cloudflare R2 and Supabase.
+  - Stores the generated report back into Supabase Storage and Supabase database.
 
 ### Next.js Tasks
 - [ ] Add visual badges to `ColumnCard` and dashboard indicating "Zero Leakage Verified" or warnings.
@@ -693,7 +693,7 @@ Override a strategy → system logs it → after 10+ corrections, policy predict
 | FastAPI + Celery | Railway | Same credit |
 | PostgreSQL | Supabase | 500MB free |
 | Redis | Upstash | 10k cmd/day free |
-| File storage | Cloudflare R2 | 10GB free |
+| File storage | Supabase Storage | Included in Supabase free tier |
 | Auth | Supabase Auth | Free |
 | Error tracking | Sentry | Free tier |
 
@@ -826,20 +826,14 @@ SUPABASE_URL=
 SUPABASE_ANON_KEY=
 UPSTASH_REDIS_URL=
 UPSTASH_REDIS_TOKEN=
-CLOUDFLARE_R2_ENDPOINT=
-R2_ACCESS_KEY_ID=
-R2_SECRET_ACCESS_KEY=
-R2_BUCKET_NAME=
+SUPABASE_BUCKET_NAME=                  # Default to 'datasets'
 AI_SERVICE_URL=http://localhost:8000   # FastAPI internal URL
 
 # services/ai/.env
 SUPABASE_URL=
 SUPABASE_SERVICE_ROLE_KEY=
 GROQ_API_KEY=
-CLOUDFLARE_R2_ENDPOINT=
-R2_ACCESS_KEY_ID=
-R2_SECRET_ACCESS_KEY=
-R2_BUCKET_NAME=
+SUPABASE_BUCKET_NAME=                  # Default to 'datasets'
 TABPFN_TOKEN=                          # From priorlabs.ai after first login
 
 # apps/web/.env.local
@@ -848,4 +842,4 @@ NEXT_PUBLIC_API_URL=http://localhost:3001
 
 ---
 
-*Built with: Next.js · NestJS · tRPC · Turborepo · FastAPI · TabPFN v2.6 · Groq · Supabase · Upstash Redis · Cloudflare R2 · Railway · Vercel*
+*Built with: Next.js · NestJS · tRPC · Turborepo · FastAPI · TabPFN v2.6 · Groq · Supabase · Upstash Redis · Supabase Storage · Railway · Vercel*
