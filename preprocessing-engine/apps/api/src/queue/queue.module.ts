@@ -13,6 +13,7 @@ import { PreprocessProcessor } from './preprocess.processor';
           port: 6379,
           password: process.env.UPSTASH_REDIS_TOKEN,
           tls: {},
+          maxRetriesPerRequest: null,
         },
       }),
     }),

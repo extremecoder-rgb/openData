@@ -22,9 +22,12 @@ export class UploadService {
     @InjectQueue('preprocess') private preprocessQueue: Queue,
   ) {
     const supabaseUrl = this.configService.getOrThrow<string>('SUPABASE_URL');
-    const supabaseKey =
-      this.configService.get<string>('SUPABASE_SERVICE_ROLE_KEY') ||
-      this.configService.getOrThrow<string>('SUPABASE_ANON_KEY');
+    let supabaseKey = this.configService.get<string>('SUPABASE_SERVICE_ROLE_KEY');
+    
+    // Gracefully bypass placeholder keys and fallback to active anon key
+    if (!supabaseKey || supabaseKey.startsWith('your_') || supabaseKey === '') {
+      supabaseKey = this.configService.getOrThrow<string>('SUPABASE_ANON_KEY');
+    }
 
     this.supabase = createClient(supabaseUrl, supabaseKey);
   }
