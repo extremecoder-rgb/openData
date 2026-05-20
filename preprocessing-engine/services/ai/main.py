@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 import logging
 from app.meta_features import extract_meta_features
 from app.storage_client import download_csv_from_storage
-from app.supabase_client import get_supabase_client, update_dataset_status
+from app.supabase_client import get_supabase_client, update_dataset_status, save_audit_log
 
 load_dotenv()
 
@@ -101,6 +101,7 @@ async def preprocess(req: PreprocessRequest):
             actions = select_action(meta_features, col)
             for action in actions:
                 reward, entry = env.step(col, action)
+                save_audit_log(supabase, dataset_id, entry)
 
         # 4. Update dataset status
         dataset_id = req.r2_key.split("/")[-1].split("-")[0]
