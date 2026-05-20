@@ -630,7 +630,28 @@ Full flow works: upload CSV → watch status update in real time → view audit 
 
 ---
 
-## Phase 8 — Human Feedback Loop
+## Phase 8 — Data Leakage Guard & Compliance Export
+> Goal: Provide statistical guarantees of zero data leakage and download clean, compliance-ready PDF audits.
+
+### FastAPI Tasks
+- [ ] Build `app/leakage_guard.py`
+  - Input: Raw dataset, data split configurations, selected preprocessing pipeline
+  - Output: Leakage audit report (`has_leakage: boolean`, `leaking_columns: list`, `leakage_risk_score: float`)
+  - Logic: Checks if imputations, scaling parameters, or categorical encodings are fitted using test split indices or leaking target variables.
+
+### NestJS Tasks
+- [ ] Create `POST /datasets/:id/compliance-report`
+  - Gathers initial dataset metadata, raw statistical profiles, audit logs, LLM explanations, confidence ratings, and user corrections.
+  - Converts records into an automated JSON payload and renders an audit-ready, beautiful compliance PDF utilizing `pdfkit` or dynamic template rendering.
+  - Stores the generated report back into Cloudflare R2 and Supabase.
+
+### Next.js Tasks
+- [ ] Add visual badges to `ColumnCard` and dashboard indicating "Zero Leakage Verified" or warnings.
+- [ ] Add a prominent "Download Compliance PDF" button on the dataset detail dashboard.
+
+---
+
+## Phase 9 — Human Feedback Loop
 > Goal: User corrections improve the RL policy over time.
 
 ### NestJS Tasks
@@ -644,7 +665,7 @@ Full flow works: upload CSV → watch status update in real time → view audit 
   - Consumes correction events from queue
   - Extracts meta-features + correct strategy as a training example
   - Appends to a local `corrections.jsonl` training file
-  - Re-weights the policy (Phase 3 policy → Phase 8 learned policy)
+  - Re-weights the policy (Phase 3 policy → Phase 9 learned policy)
 
 - [ ] Build `app/rl_agent/policy_trainer.py`
   - Loads `corrections.jsonl`
@@ -653,13 +674,14 @@ Full flow works: upload CSV → watch status update in real time → view audit 
     - Output: best strategy label
   - Saves model to `policy_model.pkl`
   - Next inference call uses learned model if available, falls back to rules
+  - *Architectural Rationale*: XGBoost is selected over LightGBM or Random Forest because our feedback loop training sets start very small (10–100 rows). LightGBM is highly prone to severe overfitting on small data, whereas XGBoost's built-in L1/L2 regularization prevents overfitting, and its compact model size (<50KB) allows sub-millisecond loading inside FastAPI.
 
 ### Done When
 Override a strategy → system logs it → after 10+ corrections, policy predictions shift toward user preferences.
 
 ---
 
-## Phase 9 — DevOps & Deployment
+## Phase 10 — DevOps & Deployment
 > Goal: Everything deployed, free, CI/CD automated.
 
 ### Services Map
@@ -736,7 +758,7 @@ Push to `main` → GitHub Actions runs → Railway and Vercel auto-deploy → li
 
 ---
 
-## Phase 10 — Polish for Hackathon Demo
+## Phase 11 — Polish for Hackathon Demo
 > Goal: Demo-ready in under 5 minutes, impressive to judges.
 
 - [ ] Add demo mode with a pre-loaded messy dataset (Titanic, House Prices)
@@ -788,9 +810,10 @@ Phase 4  →  TabPFN giving reward scores
 Phase 5  →  LLM generating explanations + audit trail
 Phase 6  →  tRPC connecting frontend to backend
 Phase 7  →  Next.js UI: upload → results → download
-Phase 8  →  Human feedback loop improving policy
-Phase 9  →  Deployed free on Railway + Vercel
-Phase 10 →  Demo polish + submission
+Phase 8  →  Data Leakage Guard & Compliance Export
+Phase 9  →  Human feedback loop improving policy
+Phase 10 →  Deployed free on Railway + Vercel
+Phase 11 →  Demo polish + submission
 ```
 
 ---
