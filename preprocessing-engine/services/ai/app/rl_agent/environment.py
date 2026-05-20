@@ -13,17 +13,27 @@ class PreprocessingEnv:
         self.baseline_score = self._evaluate(df)
 
     def step(self, column: str, action: dict) -> tuple[float, dict]:
-        """Apply action to column, get reward from TabPFN."""
+        """Apply action to column, get reward from TabPFN, generate explanation."""
         new_df = self._apply_action(self.current_df.copy(), column, action)
         new_score = self._evaluate(new_df)
         reward = new_score - self.baseline_score
         self.current_df = new_df
+
+        # Generate LLM explanation
+        from app.explainer import generate_explanation
+
+        explanation = generate_explanation(
+            column, action, self.meta_features, reward
+        )
+
         entry = {
             "column": column,
             "action": action,
             "reward": reward,
             "score_before": self.baseline_score,
             "score_after": new_score,
+            "reason": explanation.get("reason"),
+            "confidence": explanation.get("confidence"),
         }
         self.action_history.append(entry)
         self.baseline_score = new_score
