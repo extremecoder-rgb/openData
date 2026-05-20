@@ -5,6 +5,7 @@ import { AppService } from './app.service';
 import { QueueModule } from './queue/queue.module';
 import { UploadModule } from './upload/upload.module';
 import { DatasetModule } from './dataset/dataset.module';
+import { ComplianceModule } from './compliance/compliance.module';
 
 @Module({
   imports: [
@@ -12,6 +13,7 @@ import { DatasetModule } from './dataset/dataset.module';
     QueueModule,
     UploadModule,
     DatasetModule,
+    ComplianceModule,
   ],
   controllers: [AppController],
   providers: [AppService],
