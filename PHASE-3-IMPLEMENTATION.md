@@ -1,6 +1,6 @@
 # Phase 3 — Meta-Feature Extraction
 
-> Goal: FastAPI reads a dataset from R2 and extracts a rich feature profile.
+> Goal: FastAPI reads a dataset from Supabase Storage and extracts a rich feature profile.
 > Focus: Python AI service only. No frontend changes.
 
 ---
@@ -9,23 +9,23 @@
 
 | Step | Action | Files |
 |------|--------|-------|
-| **1** | Install `boto3` | `pip install boto3` |
+| **1** | Install `supabase` | `pip install supabase` |
 | **2** | Create `app/` package structure | Move `main.py` into `app/`, create `__init__.py` |
 | **3** | Create `app/meta_features.py` | `extract_meta_features(df)` function |
-| **4** | Create `app/r2_client.py` | `download_from_r2(r2_key)` using boto3 |
+| **4** | Create `app/storage_client.py` | `download_csv_from_supabase(storage_key)` using supabase SDK |
 | **5** | Create `app/supabase_client.py` | Store profile + update dataset status |
 | **6** | Update `app/main.py` | Add `POST /profile` endpoint |
 
 ---
 
-## Step 1: Install boto3
+## Step 1: Install supabase
 
 ```bash
 cd services/ai
-pip install boto3
+pip install supabase
 ```
 
-Add `"boto3>=1.42.0"` to `pyproject.toml` dependencies.
+Add `"supabase>=2.3.0"` to `pyproject.toml` dependencies.
 
 ---
 
@@ -97,31 +97,21 @@ def _iqr_outlier_pct(series: pd.Series) -> float:
 
 ---
 
-## Step 4: Create `app/r2_client.py`
+## Step 4: Create `app/storage_client.py`
 
 ```python
-# services/ai/app/r2_client.py
+# services/ai/app/storage_client.py
 
-import boto3
 import os
 from io import BytesIO
 import pandas as pd
+from app.supabase_client import get_supabase_client
 
-def get_r2_client():
-    return boto3.client(
-        "s3",
-        endpoint_url=os.environ["CLOUDFLARE_R2_ENDPOINT"],
-        aws_access_key_id=os.environ["R2_ACCESS_KEY_ID"],
-        aws_secret_access_key=os.environ["R2_SECRET_ACCESS_KEY"],
-        region_name="auto",
-    )
-
-def download_csv_from_r2(r2_key: str) -> pd.DataFrame:
-    client = get_r2_client()
-    bucket = os.environ["R2_BUCKET_NAME"]
-    response = client.get_object(Bucket=bucket, Key=r2_key)
-    body = response["Body"].read()
-    return pd.read_csv(BytesIO(body))
+def download_csv_from_supabase(storage_key: str) -> pd.DataFrame:
+    supabase = get_supabase_client()
+    bucket = os.environ.get("SUPABASE_BUCKET_NAME", "datasets")
+    response = supabase.storage.from_(bucket).download(storage_key)
+    return pd.read_csv(BytesIO(response))
 ```
 
 ---
@@ -157,7 +147,7 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from dotenv import load_dotenv
 from app.meta_features import extract_meta_features
-from app.r2_client import download_csv_from_r2
+from app.storage_client import download_csv_from_supabase
 from app.supabase_client import get_supabase_client, update_dataset_status
 
 load_dotenv()
@@ -179,8 +169,8 @@ async def profile(req: ProfileRequest):
         supabase = get_supabase_client()
         update_dataset_status(supabase, req.r2_key.split("/")[-1].split("-")[0], "profiling")
 
-        # Download CSV from R2
-        df = download_csv_from_r2(req.r2_key)
+        # Download CSV from Supabase Storage
+        df = download_csv_from_supabase(req.r2_key)
 
         # Extract meta-features
         profile = extract_meta_features(df)
@@ -204,10 +194,10 @@ async def profile(req: ProfileRequest):
 
 ## Verification
 
-1. `pip install boto3` succeeds
+1. `pip install supabase` succeeds
 2. `uvicorn app.main:app --reload --port 8000` starts without error
 3. `GET /health` returns `{"status": "ok"}`
-4. `POST /profile` with valid R2 key returns full JSON profile
+4. `POST /profile` with valid Supabase storage key returns full JSON profile
 5. Supabase dataset status updates correctly
 
 ---
@@ -217,7 +207,7 @@ async def profile(req: ProfileRequest):
 ```
 feat(ai): Phase 3 — meta-feature extraction profile endpoint
 
-- POST /profile endpoint downloads CSV from R2 via boto3
+- POST /profile endpoint downloads CSV from Supabase Storage via supabase SDK
 - Meta-feature extraction per column (missing%, skewness, outliers,
   cardinality, kurtosis, zero%, negative%)
 - Dataset-level stats (row count, duplicate%, numeric/categorical split)
