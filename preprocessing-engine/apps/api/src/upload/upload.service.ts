@@ -21,10 +21,14 @@ export class UploadService {
     private configService: ConfigService,
     @InjectQueue('preprocess') private preprocessQueue: Queue,
   ) {
-    this.supabase = createClient(
-      this.configService.getOrThrow<string>('SUPABASE_URL'),
-      this.configService.getOrThrow<string>('SUPABASE_ANON_KEY'),
-    );
+    const supabaseUrl = this.configService.getOrThrow<string>('SUPABASE_URL');
+    let supabaseKey = this.configService.get<string>('SUPABASE_SERVICE_ROLE_KEY');
+
+    if (!supabaseKey || supabaseKey.startsWith('your_') || supabaseKey === '') {
+      supabaseKey = this.configService.getOrThrow<string>('SUPABASE_ANON_KEY');
+    }
+
+    this.supabase = createClient(supabaseUrl, supabaseKey);
   }
 
   async handleUpload(file: Express.Multer.File) {
@@ -32,19 +36,33 @@ export class UploadService {
       `Processing upload: ${file.originalname} (${file.size} bytes)`,
     );
 
-    const fileKey = `uploads/${Date.now()}-${file.originalname}`;
+    const storageKey = `uploads/${Date.now()}-${file.originalname}`;
+    const bucketName =
+      this.configService.get<string>('SUPABASE_BUCKET_NAME') || 'datasets';
 
-    await this.supabase.storage
-      .from('datasets')
-      .upload(fileKey, file.buffer, { contentType: 'text/csv' });
+    const { error: uploadError } = await this.supabase.storage
+      .from(bucketName)
+      .upload(storageKey, file.buffer, {
+        contentType: 'text/csv',
+        duplex: 'half',
+      });
 
-    this.logger.log(`Uploaded to Supabase Storage: ${fileKey}`);
+    if (uploadError) {
+      this.logger.error('Supabase Storage upload error:', uploadError);
+      throw new Error(
+        `Failed to upload to Supabase Storage: ${uploadError.message}`,
+      );
+    }
+
+    this.logger.log(
+      `Uploaded to Supabase Storage bucket "${bucketName}": ${storageKey}`,
+    );
 
     const { data, error } = await this.supabase
       .from('datasets')
       .insert({
         filename: file.originalname,
-        r2_key: fileKey,
+        r2_key: storageKey,
         status: 'uploaded',
       })
       .select()
@@ -60,7 +78,11 @@ export class UploadService {
 
     await this.preprocessQueue.add('preprocess', {
       datasetId: record.id,
+<<<<<<< HEAD
       r2Key: fileKey,
+=======
+      r2Key: storageKey,
+>>>>>>> 6633737 (Add supabase Storage)
       filename: file.originalname,
     });
 
@@ -74,3 +96,4 @@ export class UploadService {
     };
   }
 }
+
