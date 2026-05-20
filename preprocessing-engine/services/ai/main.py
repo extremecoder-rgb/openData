@@ -1,13 +1,34 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from dotenv import load_dotenv
+from contextlib import asynccontextmanager
+import logging
 from app.meta_features import extract_meta_features
-from app.r2_client import download_csv_from_r2
+from app.storage_client import download_csv_from_storage
 from app.supabase_client import get_supabase_client, update_dataset_status
 
 load_dotenv()
 
-app = FastAPI(title="Preprocessing Engine AI Service", version="0.1.0")
+logger = logging.getLogger(__name__)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Warm up TabPFN model on startup to avoid cold start."""
+    try:
+        from tabpfn import TabPFNClassifier
+        from tabpfn.constants import ModelVersion
+
+        logger.info("Warming up TabPFN model...")
+        TabPFNClassifier.create_default_for_version(ModelVersion.V2_6)
+        logger.info("TabPFN model ready")
+    except Exception as e:
+        logger.warning(f"TabPFN warm-up failed (will load on first request): {e}")
+
+    yield
+
+
+app = FastAPI(title="Preprocessing Engine AI Service", version="0.1.0", lifespan=lifespan)
 
 
 class ProfileRequest(BaseModel):
@@ -39,7 +60,7 @@ async def profile(req: ProfileRequest):
         update_dataset_status(supabase, req.r2_key.split("/")[-1].split("-")[0], "profiling")
 
         # Download CSV from R2
-        df = download_csv_from_r2(req.r2_key)
+        df = download_csv_from_storage(req.r2_key)
 
         # Extract meta-features
         profile = extract_meta_features(df)
@@ -63,7 +84,7 @@ async def profile(req: ProfileRequest):
 async def preprocess(req: PreprocessRequest):
     try:
         # 1. Download CSV from R2
-        df = download_csv_from_r2(req.r2_key)
+        df = download_csv_from_storage(req.r2_key)
 
         # 2. Extract meta-features
         meta_features = extract_meta_features(df)
