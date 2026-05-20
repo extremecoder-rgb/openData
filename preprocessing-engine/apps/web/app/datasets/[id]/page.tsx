@@ -5,7 +5,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { getDatasetResults, downloadComplianceReport, type Dataset, type AuditLog } from "../../../lib/api";
+import { getDatasetResults, downloadComplianceReport, type Dataset, type AuditLog, type LeakageReport } from "../../../lib/api";
 
 const statusColors: Record<string, string> = {
   uploaded: "bg-yellow-100 text-yellow-800",
@@ -69,7 +69,7 @@ export default function DatasetDetail() {
           {new Date(dataset.created_at).toLocaleDateString()}
         </p>
 
-        <div className="mb-6 flex items-center gap-4">
+        <div className="mb-6 flex items-center gap-4 flex-wrap">
           <span
             className={`px-3 py-1 rounded-full text-sm ${
               statusColors[dataset.status] || "bg-gray-100"
@@ -77,6 +77,19 @@ export default function DatasetDetail() {
           >
             {dataset.status}
           </span>
+          {dataset.status === "done" && dataset.leakage_report && (
+            <span
+              className={`px-3 py-1 rounded-full text-sm font-medium ${
+                dataset.leakage_report.has_leakage
+                  ? "bg-red-100 text-red-700"
+                  : "bg-green-100 text-green-700"
+              }`}
+            >
+              {dataset.leakage_report.has_leakage
+                ? "Leakage Detected"
+                : "Zero Leakage Verified"}
+            </span>
+          )}
           <button
             onClick={handleDownload}
             disabled={downloading || dataset.status !== "done"}
@@ -85,6 +98,38 @@ export default function DatasetDetail() {
             {downloading ? "Generating..." : "Download Compliance PDF"}
           </button>
         </div>
+
+        {dataset.status === "done" && dataset.leakage_report && (
+          <>
+            <div className="mb-6 p-4 border rounded bg-gray-50">
+              <h2 className="text-xl font-semibold mb-2">
+                Data Leakage Assessment
+              </h2>
+              <div className="flex items-center gap-2 mb-2">
+                <span
+                  className={`text-lg font-bold ${
+                    dataset.leakage_report.has_leakage
+                      ? "text-red-600"
+                      : "text-green-600"
+                  }`}
+                >
+                  {dataset.leakage_report.has_leakage
+                    ? "Leakage Detected"
+                    : "Zero Leakage Verified"}
+                </span>
+                <span className="text-sm text-gray-500">
+                  (Risk: {(dataset.leakage_report.leakage_risk_score * 100).toFixed(0)}%)
+                </span>
+              </div>
+              {dataset.leakage_report.leaking_columns.length > 0 && (
+                <div className="text-sm">
+                  <span className="font-medium">Leaking columns: </span>
+                  {dataset.leakage_report.leaking_columns.join(", ")}
+                </div>
+              )}
+            </div>
+          </>
+        )}
 
         <h2 className="text-xl font-semibold mb-4">Audit Trail</h2>
 

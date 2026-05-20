@@ -19,6 +19,7 @@ interface Dataset {
   row_count: number;
   column_count: number;
   created_at: string;
+  leakage_report: Record<string, unknown> | null;
 }
 
 @Injectable()
@@ -46,6 +47,14 @@ export class ComplianceService {
       .order('created_at', { ascending: true });
 
     const pdfBuffer = await this.buildPDF(dataset as Dataset, auditLogs as AuditLog[]);
+
+    // Store PDF to Supabase Storage
+    const filePath = `compliance/${datasetId}.pdf`;
+    await this.supabase.storage.from('reports').upload(filePath, pdfBuffer, {
+      contentType: 'application/pdf',
+      upsert: true,
+    });
+
     return pdfBuffer;
   }
 
@@ -70,6 +79,31 @@ export class ComplianceService {
       doc.text(`Columns: ${dataset.column_count || 'N/A'}`);
       doc.text(`Status: ${dataset.status}`);
       doc.text(`Created: ${new Date(dataset.created_at).toLocaleDateString()}`);
+      doc.moveDown();
+
+      // Leakage Report
+      doc.fontSize(14).text('Data Leakage Assessment', { underline: true });
+      doc.fontSize(12);
+
+      const leakage = dataset.leakage_report as Record<string, unknown> | null;
+      if (leakage) {
+        const hasLeakage = leakage.has_leakage as boolean;
+        const riskScore = leakage.leakage_risk_score as number;
+        const leakingCols = leakage.leaking_columns as string[];
+
+        if (hasLeakage) {
+          doc.fontSize(12).fillColor('red').text('Leakage Detected');
+          doc.fillColor('black');
+          doc.text(`Risk Score: ${(riskScore * 100).toFixed(0)}%`);
+          doc.text(`Leaking Columns: ${leakingCols.join(', ') || 'None'}`);
+        } else {
+          doc.fontSize(12).fillColor('green').text('✓ Zero Leakage Verified');
+          doc.fillColor('black');
+          doc.text(`Risk Score: ${(riskScore * 100).toFixed(0)}%`);
+        }
+      } else {
+        doc.text('No leakage assessment available.');
+      }
       doc.moveDown();
 
       // Audit Trail

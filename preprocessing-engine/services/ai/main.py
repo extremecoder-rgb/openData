@@ -6,6 +6,7 @@ import logging
 from app.meta_features import extract_meta_features
 from app.storage_client import download_csv_from_storage
 from app.supabase_client import get_supabase_client, update_dataset_status, save_audit_log
+from app.leakage_guard import check_data_leakage
 
 load_dotenv()
 
@@ -83,6 +84,9 @@ async def profile(req: ProfileRequest):
 @app.post("/preprocess")
 async def preprocess(req: PreprocessRequest):
     try:
+        supabase = get_supabase_client()
+        dataset_id = req.r2_key.split("/")[-1].split("-")[0]
+
         # 1. Download CSV from R2
         df = download_csv_from_storage(req.r2_key)
 
@@ -103,23 +107,24 @@ async def preprocess(req: PreprocessRequest):
                 reward, entry = env.step(col, action)
                 save_audit_log(supabase, dataset_id, entry)
 
-        # 4. Update dataset status
-        dataset_id = req.r2_key.split("/")[-1].split("-")[0]
-        supabase = get_supabase_client()
-
-        dataset_meta = meta_features.get("__dataset__", {})
+        # 4. Check for data leakage
+        leakage_report = check_data_leakage(
+            df, env.action_history, req.target_column
+        )
         update_dataset_status(
             supabase,
             dataset_id,
             "done",
-            row_count=dataset_meta.get("row_count"),
-            column_count=dataset_meta.get("col_count"),
+            row_count=meta_features.get("__dataset__", {}).get("row_count"),
+            column_count=meta_features.get("__dataset__", {}).get("col_count"),
+            leakage_report=leakage_report,
         )
 
         return {
             "dataset_id": dataset_id,
             "action_history": env.action_history,
             "meta_features": meta_features,
+            "leakage_report": leakage_report,
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

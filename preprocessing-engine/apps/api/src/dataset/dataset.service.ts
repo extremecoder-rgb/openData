@@ -10,6 +10,7 @@ export interface DatasetRow {
   status: string;
   row_count: number | null;
   column_count: number | null;
+  leakage_report: Record<string, unknown> | null;
   created_at: string;
   updated_at: string;
 }

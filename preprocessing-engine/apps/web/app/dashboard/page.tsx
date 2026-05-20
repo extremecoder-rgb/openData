@@ -61,13 +61,28 @@ export default function Dashboard() {
                     {new Date(ds.created_at).toLocaleDateString()}
                   </p>
                 </div>
-                <span
-                  className={`px-3 py-1 rounded-full text-sm ${
-                    statusColors[ds.status] || "bg-gray-100"
-                  }`}
-                >
-                  {ds.status}
-                </span>
+                <div className="flex items-center gap-2">
+                  {ds.status === "done" && ds.leakage_report && (
+                    <span
+                      className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                        ds.leakage_report.has_leakage
+                          ? "bg-red-100 text-red-700"
+                          : "bg-green-100 text-green-700"
+                      }`}
+                    >
+                      {ds.leakage_report.has_leakage
+                        ? "Leakage"
+                        : "Zero Leakage"}
+                    </span>
+                  )}
+                  <span
+                    className={`px-3 py-1 rounded-full text-sm ${
+                      statusColors[ds.status] || "bg-gray-100"
+                    }`}
+                  >
+                    {ds.status}
+                  </span>
+                </div>
               </div>
             </Link>
           ))}

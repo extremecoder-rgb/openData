@@ -8,8 +8,16 @@ export interface Dataset {
   status: "uploaded" | "profiling" | "processing" | "done" | "failed";
   row_count: number | null;
   column_count: number | null;
+  leakage_report: LeakageReport | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface LeakageReport {
+  has_leakage: boolean;
+  leaking_columns: string[];
+  leakage_risk_score: number;
+  details: Record<string, unknown>;
 }
 
 export interface AuditLog {
