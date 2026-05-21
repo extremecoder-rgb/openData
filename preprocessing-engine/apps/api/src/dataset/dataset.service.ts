@@ -115,7 +115,7 @@ export class DatasetService {
     }
 
     const csvContent = Buffer.from(await data.arrayBuffer()).toString('utf-8');
-    const firstLine = csvContent.split('\n')[0];
+    const firstLine = csvContent.split('\n')[0] || '';
     const columns = firstLine.split(',').map(c => c.trim().replace(/^"|"$/g, ''));
     return columns.filter(c => c.length > 0);
   }
@@ -167,7 +167,7 @@ export class DatasetService {
         }),
       });
     } catch (learnErr) {
-      this.logger.warn(`Failed to propagate feedback to AI learning service: ${learnErr.message}`);
+      this.logger.warn(`Failed to propagate feedback to AI learning service: ${(learnErr as any).message}`);
     }
   }
 
