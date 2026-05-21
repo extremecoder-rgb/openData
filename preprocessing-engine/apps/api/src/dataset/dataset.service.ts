@@ -33,10 +33,15 @@ export class DatasetService {
   private readonly supabase;
 
   constructor(private configService: ConfigService) {
-    this.supabase = createClient(
-      this.configService.getOrThrow<string>('SUPABASE_URL'),
-      this.configService.getOrThrow<string>('SUPABASE_ANON_KEY'),
-    );
+    const supabaseUrl = this.configService.getOrThrow<string>('SUPABASE_URL');
+    let supabaseKey = this.configService.get<string>('SUPABASE_SERVICE_ROLE_KEY');
+
+    // Gracefully bypass placeholder keys and fallback to active anon key
+    if (!supabaseKey || supabaseKey.startsWith('your_') || supabaseKey === '') {
+      supabaseKey = this.configService.getOrThrow<string>('SUPABASE_ANON_KEY');
+    }
+
+    this.supabase = createClient(supabaseUrl, supabaseKey);
   }
 
   async listDatasets(): Promise<DatasetRow[]> {
