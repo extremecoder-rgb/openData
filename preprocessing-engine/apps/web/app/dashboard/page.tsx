@@ -33,8 +33,59 @@ export default function Dashboard() {
       <div className="max-w-4xl mx-auto">
         <h1 className="text-3xl font-bold mb-8">Dashboard</h1>
 
-        <div className="mb-8">
-          <Uploader />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+          <div>
+            <h3 className="font-semibold text-sm text-gray-500 uppercase mb-2">Upload Dataset</h3>
+            <Uploader />
+          </div>
+          <div className="p-6 border border-indigo-200 rounded-lg bg-indigo-50 flex flex-col justify-between">
+            <div>
+              <h3 className="font-semibold text-sm text-indigo-900 uppercase mb-2">Demo & Sandbox Mode</h3>
+              <p className="text-xs text-indigo-700 mb-4">
+                Don't have a dataset ready? Trigger our sandboxes to seed pre-loaded industry standard datasets and explore the AI Preprocessing environment in one click.
+              </p>
+            </div>
+            <div className="flex gap-2 flex-wrap">
+              <button
+                onClick={async () => {
+                  try {
+                    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"}/datasets/seed-demo`, {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ type: "titanic" }),
+                    });
+                    if (!res.ok) throw new Error("Seeding failed");
+                    alert("Titanic Demo Dataset seeded successfully!");
+                    window.location.reload();
+                  } catch (err) {
+                    alert("Seeding failed: " + (err as Error).message);
+                  }
+                }}
+                className="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-xs font-semibold transition"
+              >
+                Seed Titanic (Classification)
+              </button>
+              <button
+                onClick={async () => {
+                  try {
+                    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"}/datasets/seed-demo`, {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ type: "housing" }),
+                    });
+                    if (!res.ok) throw new Error("Seeding failed");
+                    alert("Housing Prices Demo Dataset seeded successfully!");
+                    window.location.reload();
+                  } catch (err) {
+                    alert("Seeding failed: " + (err as Error).message);
+                  }
+                }}
+                className="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-xs font-semibold transition"
+              >
+                Seed House Prices (Regression)
+              </button>
+            </div>
+          </div>
         </div>
 
         <h2 className="text-xl font-semibold mb-4">Your Datasets</h2>

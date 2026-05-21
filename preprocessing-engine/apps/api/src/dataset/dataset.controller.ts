@@ -67,4 +67,12 @@ export class DatasetController {
     await this.datasetService.saveUserCorrection(auditLogId, originalStrategy, correctedStrategy);
     return { success: true };
   }
+
+  @Post('/seed-demo')
+  async seedDemoDataset(@Body('type') type: string): Promise<{ id: string }> {
+    if (!type || (type !== 'titanic' && type !== 'housing')) {
+      throw new NotFoundException('type must be titanic or housing');
+    }
+    return this.datasetService.seedDemoDataset(type);
+  }
 }

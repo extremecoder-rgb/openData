@@ -170,4 +170,100 @@ export class DatasetService {
       this.logger.warn(`Failed to propagate feedback to AI learning service: ${learnErr.message}`);
     }
   }
+
+  async seedDemoDataset(type: string): Promise<{ id: string }> {
+    const isTitanic = type === 'titanic';
+    const filename = isTitanic ? 'titanic_demo.csv' : 'house_prices_demo.csv';
+    const rowCount = isTitanic ? 891 : 1460;
+    const colCount = isTitanic ? 12 : 81;
+    const leakageReport = {
+      has_leakage: false,
+      leakage_risk_score: 0.0,
+      leaking_columns: [],
+    };
+
+    // 1. Create dataset record
+    const { data: dataset, error } = await this.supabase
+      .from('datasets')
+      .insert({
+        filename,
+        r2_key: `demo/${filename}`,
+        status: 'done',
+        row_count: rowCount,
+        column_count: colCount,
+        leakage_report: leakageReport,
+      })
+      .select('id')
+      .single();
+
+    if (error) {
+      this.logger.error('Failed to seed demo dataset:', error);
+      throw new Error(`Failed to seed demo dataset: ${error.message}`);
+    }
+
+    const datasetId = dataset.id;
+
+    // 2. Insert corresponding audit logs
+    const logs = isTitanic
+      ? [
+          {
+            dataset_id: datasetId,
+            column_name: 'Age',
+            issue_detected: 'missing_values',
+            strategy_chosen: 'imputation:median',
+            reason: 'The Age column is skewed (skewness=0.389) and has 177 missing values. Median imputation preserves distribution without introducing outliers.',
+            confidence_score: 0.92,
+            accuracy_delta: 0.034,
+          },
+          {
+            dataset_id: datasetId,
+            column_name: 'Cabin',
+            issue_detected: 'high_cardinality',
+            strategy_chosen: 'encoding:frequency',
+            reason: 'Cabin column has high cardinality with multiple distinct cabin strings. Frequency encoding reduces dimensions while retaining class density information.',
+            confidence_score: 0.81,
+            accuracy_delta: 0.012,
+          },
+          {
+            dataset_id: datasetId,
+            column_name: 'Fare',
+            issue_detected: 'skewness',
+            strategy_chosen: 'scaling:robust',
+            reason: 'Fare is heavily skewed (skewness=4.78). Robust scaling using IQR scaling limits the impact of high fare outliers.',
+            confidence_score: 0.95,
+            accuracy_delta: 0.052,
+          },
+        ]
+      : [
+          {
+            dataset_id: datasetId,
+            column_name: 'LotFrontage',
+            issue_detected: 'missing_values',
+            strategy_chosen: 'imputation:mean',
+            reason: 'LotFrontage has 259 missing values. Mean imputation is selected as it represents standard normal distribution.',
+            confidence_score: 0.88,
+            accuracy_delta: 0.008,
+          },
+          {
+            dataset_id: datasetId,
+            column_name: 'Neighborhood',
+            issue_detected: 'is_categorical',
+            strategy_chosen: 'encoding:onehot',
+            reason: 'Neighborhood categories contain qualitative names with low cardinality ratio (0.017). One-hot encoding creates optimal sparse vectors.',
+            confidence_score: 0.94,
+            accuracy_delta: 0.045,
+          },
+        ];
+
+    const { error: logsError } = await this.supabase
+      .from('audit_logs')
+      .insert(logs);
+
+    if (logsError) {
+      this.logger.error('Failed to seed audit logs for demo dataset:', logsError);
+      throw new Error(`Failed to seed demo logs: ${logsError.message}`);
+    }
+
+    return { id: datasetId };
+  }
 }

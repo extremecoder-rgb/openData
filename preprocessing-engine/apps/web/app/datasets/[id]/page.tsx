@@ -137,7 +137,53 @@ export default function DatasetDetail() {
           >
             {downloading ? "Generating..." : "Download Compliance PDF"}
           </button>
+          {dataset.status === "done" && (
+            <button
+              onClick={() => {
+                const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify({ dataset, auditLogs }, null, 2));
+                const downloadAnchor = document.createElement('a');
+                downloadAnchor.setAttribute("href", dataStr);
+                downloadAnchor.setAttribute("download", `audit-report-${id}.json`);
+                document.body.appendChild(downloadAnchor);
+                downloadAnchor.click();
+                downloadAnchor.remove();
+              }}
+              className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded text-sm font-medium transition"
+            >
+              Export JSON Report
+            </button>
+          )}
         </div>
+
+        {dataset.status === "done" && (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+            <div className="p-4 bg-white border border-gray-200 rounded-lg shadow-sm">
+              <p className="text-xs font-semibold text-gray-500 uppercase">Features Engineered</p>
+              <h3 className="text-2xl font-bold text-gray-900 mt-1">{auditLogs.length}</h3>
+              <p className="text-xs text-gray-500 mt-1">Actions successfully run by RL agent</p>
+            </div>
+            <div className="p-4 bg-white border border-gray-200 rounded-lg shadow-sm">
+              <p className="text-xs font-semibold text-gray-500 uppercase">Leakage Risk Assessment</p>
+              <h3 className="text-2xl font-bold text-gray-900 mt-1">
+                {dataset.leakage_report?.has_leakage ? "High Risk" : "Zero Risk"}
+              </h3>
+              <p className="text-xs text-gray-500 mt-1">
+                Risk Score: {((dataset.leakage_report?.leakage_risk_score || 0) * 100).toFixed(0)}%
+              </p>
+            </div>
+            <div className="p-4 bg-white border border-gray-200 rounded-lg shadow-sm">
+              <p className="text-xs font-semibold text-gray-500 uppercase">Average ML Confidence</p>
+              <h3 className="text-2xl font-bold text-gray-900 mt-1">
+                {(
+                  (auditLogs.reduce((acc, log) => acc + (log.confidence_score || 0), 0) /
+                    (auditLogs.length || 1)) *
+                  100
+                ).toFixed(0)}%
+              </h3>
+              <p className="text-xs text-gray-500 mt-1">Strategy confidence rating by LLM</p>
+            </div>
+          </div>
+        )}
 
         {dataset.status === "profiled" && (
           <div className="mb-8 p-6 border border-purple-200 rounded-lg bg-purple-50">
