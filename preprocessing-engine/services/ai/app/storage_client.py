@@ -22,3 +22,24 @@ def download_csv_from_storage(file_key: str) -> pd.DataFrame:
     if not response:
         raise FileNotFoundError(f"File not found in storage: {file_key}")
     return pd.read_csv(BytesIO(response))
+
+
+def upload_csv_to_storage(df: pd.DataFrame, file_key: str) -> bool:
+    if not file_key:
+        raise ValueError("file_key is required")
+    client = get_storage_client()
+    
+    # Convert DataFrame to CSV string
+    csv_data = df.to_csv(index=False)
+    
+    try:
+        # Upload using the raw string
+        client.storage.from_("datasets").upload(
+            file_key,
+            csv_data.encode('utf-8'),
+            file_options={"content-type": "text/csv", "upsert": "true"}
+        )
+        return True
+    except Exception as e:
+        print(f"Upload failed: {e}")
+        return False

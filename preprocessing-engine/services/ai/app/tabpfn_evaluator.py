@@ -12,7 +12,11 @@ def evaluate_with_tabpfn(df: pd.DataFrame, target_col: str) -> float:
     if target_col not in df.columns:
         return 0.0
 
-    df_clean = df.dropna().copy()
+    df_clean = df.copy()
+    for col in df_clean.select_dtypes(include=[np.number]).columns:
+        df_clean[col] = df_clean[col].fillna(df_clean[col].median() if not pd.isna(df_clean[col].median()) else 0)
+    for col in df_clean.select_dtypes(include=["object"]).columns:
+        df_clean[col] = df_clean[col].fillna("missing")
     if len(df_clean) < 20 or df_clean[target_col].nunique() < 2:
         return 0.0
 

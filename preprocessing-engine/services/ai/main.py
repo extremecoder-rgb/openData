@@ -116,6 +116,11 @@ async def preprocess(req: PreprocessRequest):
         leakage_report = check_data_leakage(
             df, env.action_history, req.target_column
         )
+
+        from app.storage_client import upload_csv_to_storage
+        clean_key = req.r2_key.replace(".csv", "_clean.csv")
+        upload_csv_to_storage(env.current_df, clean_key)
+
         update_dataset_status(
             supabase,
             dataset_id,

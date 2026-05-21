@@ -85,7 +85,7 @@ def check_data_leakage(
                     }
                     risk_score += 0.35
 
-    if col == target_col:
+    if target_col in {entry.get("column", "") for entry in action_history}:
         has_leakage = True
         leaking_columns.append(target_col)
         details[target_col] = {
