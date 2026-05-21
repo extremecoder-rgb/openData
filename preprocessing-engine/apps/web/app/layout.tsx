@@ -1,19 +1,9 @@
 import type { Metadata } from "next";
-import localFont from "next/font/local";
 import "./globals.css";
 
-const geistSans = localFont({
-  src: "./fonts/GeistVF.woff",
-  variable: "--font-geist-sans",
-});
-const geistMono = localFont({
-  src: "./fonts/GeistMonoVF.woff",
-  variable: "--font-geist-mono",
-});
-
 export const metadata: Metadata = {
-  title: "AI Preprocessing Engine",
-  description: "Intelligent data preprocessing with RL, TabPFN, and LLM explanations",
+  title: "OpenData AI — Preprocessing Engine",
+  description: "Turn messy CSV data into ML-ready datasets in seconds with AI-powered preprocessing, RL agents, and full audit trails.",
 };
 
 export default function RootLayout({
@@ -23,9 +13,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${geistSans.variable} ${geistMono.variable}`}>
-        {children}
-      </body>
+      <body>{children}</body>
     </html>
   );
 }

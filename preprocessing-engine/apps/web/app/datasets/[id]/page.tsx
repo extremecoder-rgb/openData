@@ -5,16 +5,32 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { getDatasetResults, downloadComplianceReport, getDatasetColumns, runPreprocessing, type Dataset, type AuditLog, type LeakageReport } from "../../../lib/api";
+import {
+  getDatasetResults,
+  downloadComplianceReport,
+  getDatasetColumns,
+  runPreprocessing,
+  type Dataset,
+  type AuditLog,
+} from "../../../lib/api";
 
-const statusColors: Record<string, string> = {
-  uploaded: "bg-yellow-100 text-yellow-800",
-  profiling: "bg-blue-100 text-blue-800",
-  profiled: "bg-purple-100 text-purple-800",
-  processing: "bg-blue-100 text-blue-800",
-  done: "bg-green-100 text-green-800",
-  failed: "bg-red-100 text-red-800",
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+
+const STATUS_CONFIG: Record<string, { label: string; badgeClass: string; icon: string }> = {
+  uploaded: { label: "Uploaded", badgeClass: "badge badge-uploaded", icon: "📤" },
+  profiling: { label: "Profiling…", badgeClass: "badge badge-profiling", icon: "🔍" },
+  profiled: { label: "Profiled", badgeClass: "badge badge-profiled", icon: "✅" },
+  processing: { label: "Processing…", badgeClass: "badge badge-processing", icon: "⚙️" },
+  done: { label: "Done", badgeClass: "badge badge-done", icon: "🎉" },
+  failed: { label: "Failed", badgeClass: "badge badge-failed", icon: "❌" },
 };
+
+const CORRECTION_OPTIONS = [
+  { group: "Imputation", options: [{ value: "imputation:mean", label: "Mean imputation" }, { value: "imputation:median", label: "Median imputation" }] },
+  { group: "Encoding", options: [{ value: "encoding:onehot", label: "One-Hot encoding" }, { value: "encoding:frequency", label: "Frequency encoding" }] },
+  { group: "Scaling", options: [{ value: "scaling:standard", label: "Standard scaler" }, { value: "scaling:robust", label: "Robust scaler" }] },
+  { group: "Outlier", options: [{ value: "outlier:clip_iqr", label: "Clip IQR" }] },
+];
 
 export default function DatasetDetail() {
   const params = useParams();
@@ -26,55 +42,13 @@ export default function DatasetDetail() {
   const [error, setError] = useState("");
   const [downloading, setDownloading] = useState(false);
   const [columns, setColumns] = useState<string[]>([]);
-  const [selectedTargetColumn, setSelectedTargetColumn] = useState("");
+  const [targetColumn, setTargetColumn] = useState("");
   const [triggering, setTriggering] = useState(false);
-  const [correctionsSubmitting, setCorrectionsSubmitting] = useState<Record<string, boolean>>({});
-  const [selectedCorrections, setSelectedCorrections] = useState<Record<string, string>>({});
+  const [corrections, setCorrections] = useState<Record<string, string>>({});
+  const [submitting, setSubmitting] = useState<Record<string, boolean>>({});
+  const [feedbackMsg, setFeedbackMsg] = useState<Record<string, { type: "success" | "error"; text: string }>>({});
 
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
-
-  const handleFeedbackSubmit = async (auditLogId: string, originalStrategy: string) => {
-    const correctedStrategy = selectedCorrections[auditLogId];
-    if (!correctedStrategy) return alert("Please select a correction first");
-
-    setCorrectionsSubmitting(prev => ({ ...prev, [auditLogId]: true }));
-    try {
-      const res = await fetch(`${API_URL}/datasets/${id}/feedback`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          auditLogId,
-          originalStrategy,
-          correctedStrategy,
-        }),
-      });
-      if (!res.ok) throw new Error("Failed to submit feedback");
-      alert("Feedback saved! XGBoost policy will now align with your choice next time.");
-    } catch (err) {
-      alert("Failed to submit feedback: " + (err as Error).message);
-    } finally {
-      setCorrectionsSubmitting(prev => ({ ...prev, [auditLogId]: false }));
-    }
-  };
-
-  const handleDownload = async () => {
-    setDownloading(true);
-    try {
-      const blob = await downloadComplianceReport(id);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `compliance-report-${id}.pdf`;
-      a.click();
-      URL.revokeObjectURL(url);
-    } catch (err) {
-      alert("Failed to download report");
-    } finally {
-      setDownloading(false);
-    }
-  };
-
-  useEffect(() => {
+  const fetchData = () => {
     getDatasetResults(id)
       .then((data) => {
         setDataset(data.dataset);
@@ -82,271 +56,506 @@ export default function DatasetDetail() {
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
-  }, [id]);
+  };
+
+  useEffect(() => { fetchData(); }, [id]);
 
   useEffect(() => {
-    if (dataset && dataset.status === "profiled") {
-      getDatasetColumns(id)
-        .then(setColumns)
-        .catch(console.error);
+    if (dataset?.status === "profiled") {
+      getDatasetColumns(id).then(setColumns).catch(console.error);
     }
   }, [dataset, id]);
 
-  if (loading) return <div className="p-8">Loading...</div>;
-  if (error) return <div className="p-8 text-red-600">Error: {error}</div>;
-  if (!dataset) return <div className="p-8">Dataset not found</div>;
+  const handleDownload = async () => {
+    setDownloading(true);
+    try {
+      const blob = await downloadComplianceReport(id);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = `compliance-${id}.pdf`; a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      alert("Failed to download report");
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  const handleTrigger = async () => {
+    if (!targetColumn) return;
+    setTriggering(true);
+    try {
+      await runPreprocessing(id, targetColumn);
+      fetchData();
+    } catch {
+      alert("Failed to queue preprocessing task");
+    } finally {
+      setTriggering(false);
+    }
+  };
+
+  const handleFeedback = async (logId: string, originalStrategy: string) => {
+    const corrected = corrections[logId];
+    if (!corrected) return;
+    setSubmitting((p) => ({ ...p, [logId]: true }));
+    try {
+      const res = await fetch(`${API_URL}/datasets/${id}/feedback`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ auditLogId: logId, originalStrategy, correctedStrategy: corrected }),
+      });
+      if (!res.ok) throw new Error("Failed");
+      setFeedbackMsg((p) => ({ ...p, [logId]: { type: "success", text: "Correction saved! Agent will learn from this." } }));
+    } catch {
+      setFeedbackMsg((p) => ({ ...p, [logId]: { type: "error", text: "Failed to submit." } }));
+    } finally {
+      setSubmitting((p) => ({ ...p, [logId]: false }));
+    }
+  };
+
+  const exportJSON = () => {
+    const data = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify({ dataset, auditLogs }, null, 2));
+    const a = document.createElement("a");
+    a.setAttribute("href", data);
+    a.setAttribute("download", `audit-${id}.json`);
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  };
+
+  if (loading) return (
+    <div style={{ minHeight: "100vh" }}>
+      <nav className="nav">
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <Link href="/dashboard" style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{ width: 32, height: 32, borderRadius: 8, background: "linear-gradient(135deg, #6366f1, #8b5cf6)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 }}>⚡</div>
+            <span style={{ fontWeight: 700, fontSize: 16, letterSpacing: "-0.02em" }}>OpenData AI</span>
+          </Link>
+        </div>
+      </nav>
+      <div className="page-container" style={{ paddingTop: 48 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          {[200, 80, 120, 80, 80].map((h, i) => (
+            <div key={i} className="skeleton" style={{ height: h, borderRadius: 16 }} />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+
+  if (error) return (
+    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ textAlign: "center" }}>
+        <div style={{ fontSize: 48, marginBottom: 16 }}>⚠️</div>
+        <p style={{ color: "#f87171", fontSize: 16, marginBottom: 24 }}>Error: {error}</p>
+        <Link href="/dashboard"><button className="btn-secondary">← Back to Dashboard</button></Link>
+      </div>
+    </div>
+  );
+
+  if (!dataset) return (
+    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ textAlign: "center" }}>
+        <div style={{ fontSize: 48, marginBottom: 16 }}>📂</div>
+        <p style={{ color: "var(--text-secondary)", marginBottom: 24 }}>Dataset not found</p>
+        <Link href="/dashboard"><button className="btn-secondary">← Back to Dashboard</button></Link>
+      </div>
+    </div>
+  );
+
+  const cfg = STATUS_CONFIG[dataset.status] || { label: dataset.status, badgeClass: "badge", icon: "•" };
+  const avgConfidence = auditLogs.length
+    ? (auditLogs.reduce((a, l) => a + (l.confidence_score || 0), 0) / auditLogs.length) * 100
+    : 0;
 
   return (
-    <div className="min-h-screen p-8">
-      <div className="max-w-4xl mx-auto">
-        <Link href="/dashboard" className="text-blue-600 hover:underline mb-4 inline-block">
-          ← Back to Dashboard
+    <div style={{ minHeight: "100vh", position: "relative" }}>
+      {/* Nav */}
+      <nav className="nav">
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <Link href="/dashboard" style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{ width: 32, height: 32, borderRadius: 8, background: "linear-gradient(135deg, #6366f1, #8b5cf6)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 }}>⚡</div>
+            <span style={{ fontWeight: 700, fontSize: 16, letterSpacing: "-0.02em" }}>OpenData AI</span>
+          </Link>
+        </div>
+        <Link href="/dashboard">
+          <button className="btn-secondary" style={{ padding: "7px 16px", fontSize: 13 }}>← Dashboard</button>
         </Link>
+      </nav>
 
-        <h1 className="text-3xl font-bold mb-2">{dataset.filename}</h1>
-        <p className="text-gray-500 mb-6">
-          {dataset.row_count || 0} rows × {dataset.column_count || 0} columns • Created{" "}
-          {new Date(dataset.created_at).toLocaleDateString()}
-        </p>
+      <div className="page-container" style={{ paddingTop: 40, paddingBottom: 80 }}>
+        {/* Header */}
+        <div className="animate-fade-up" style={{ marginBottom: 32 }}>
+          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: 16 }}>
+            <div>
+              <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 8 }}>
+                <div
+                  style={{
+                    width: 44, height: 44, borderRadius: 12,
+                    background: "rgba(99,102,241,0.12)",
+                    border: "1px solid rgba(99,102,241,0.2)",
+                    display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22,
+                  }}
+                >📄</div>
+                <div>
+                  <h1 style={{ fontSize: 26, fontWeight: 800, letterSpacing: "-0.03em", lineHeight: 1.2 }}>
+                    {dataset.filename}
+                  </h1>
+                  <p style={{ fontSize: 13, color: "var(--text-muted)", marginTop: 2 }}>
+                    {dataset.row_count?.toLocaleString() || "—"} rows × {dataset.column_count || "—"} cols •{" "}
+                    {new Date(dataset.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                  </p>
+                </div>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                <span className={cfg.badgeClass}>{cfg.icon} {cfg.label}</span>
+                {dataset.status === "done" && dataset.leakage_report && (
+                  <span className={`badge ${dataset.leakage_report.has_leakage ? "badge-failed" : "badge-done"}`}>
+                    {dataset.leakage_report.has_leakage ? "⚠ Leakage Detected" : "✓ Zero Leakage"}
+                  </span>
+                )}
+              </div>
+            </div>
 
-        <div className="mb-6 flex items-center gap-4 flex-wrap">
-          <span
-            className={`px-3 py-1 rounded-full text-sm font-medium ${
-              statusColors[dataset.status] || "bg-gray-100"
-            }`}
-          >
-            {dataset.status}
-          </span>
-          {dataset.status === "done" && dataset.leakage_report && (
-            <span
-              className={`px-3 py-1 rounded-full text-sm font-medium ${
-                dataset.leakage_report.has_leakage
-                  ? "bg-red-100 text-red-700"
-                  : "bg-green-100 text-green-700"
-              }`}
-            >
-              {dataset.leakage_report.has_leakage
-                ? "Leakage Detected"
-                : "Zero Leakage Verified"}
-            </span>
-          )}
-          <button
-            onClick={handleDownload}
-            disabled={downloading || dataset.status !== "done"}
-            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
-          >
-            {downloading ? "Generating..." : "Download Compliance PDF"}
-          </button>
-          {dataset.status === "done" && (
-            <button
-              onClick={() => {
-                const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify({ dataset, auditLogs }, null, 2));
-                const downloadAnchor = document.createElement('a');
-                downloadAnchor.setAttribute("href", dataStr);
-                downloadAnchor.setAttribute("download", `audit-report-${id}.json`);
-                document.body.appendChild(downloadAnchor);
-                downloadAnchor.click();
-                downloadAnchor.remove();
-              }}
-              className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded text-sm font-medium transition"
-            >
-              Export JSON Report
-            </button>
-          )}
+            {/* Actions */}
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+              {dataset.status === "done" && (
+                <>
+                  <button onClick={exportJSON} className="btn-secondary" style={{ fontSize: 13, padding: "9px 18px" }}>
+                    Export JSON
+                  </button>
+                  <button
+                    onClick={handleDownload}
+                    disabled={downloading}
+                    className="btn-primary"
+                    style={{ fontSize: 13, padding: "9px 18px" }}
+                  >
+                    {downloading ? "Generating…" : "📄 Download PDF"}
+                  </button>
+                </>
+              )}
+              <button
+                onClick={fetchData}
+                style={{
+                  padding: "9px 14px",
+                  background: "rgba(255,255,255,0.04)",
+                  border: "1px solid var(--border-color)",
+                  borderRadius: 10,
+                  color: "var(--text-secondary)",
+                  fontSize: 13,
+                  cursor: "pointer",
+                  fontFamily: "Inter, sans-serif",
+                }}
+              >↻</button>
+            </div>
+          </div>
         </div>
 
+        {/* Stats Cards — only when done */}
         {dataset.status === "done" && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-            <div className="p-4 bg-white border border-gray-200 rounded-lg shadow-sm">
-              <p className="text-xs font-semibold text-gray-500 uppercase">Features Engineered</p>
-              <h3 className="text-2xl font-bold text-gray-900 mt-1">{auditLogs.length}</h3>
-              <p className="text-xs text-gray-500 mt-1">Actions successfully run by RL agent</p>
-            </div>
-            <div className="p-4 bg-white border border-gray-200 rounded-lg shadow-sm">
-              <p className="text-xs font-semibold text-gray-500 uppercase">Leakage Risk Assessment</p>
-              <h3 className="text-2xl font-bold text-gray-900 mt-1">
-                {dataset.leakage_report?.has_leakage ? "High Risk" : "Zero Risk"}
-              </h3>
-              <p className="text-xs text-gray-500 mt-1">
-                Risk Score: {((dataset.leakage_report?.leakage_risk_score || 0) * 100).toFixed(0)}%
-              </p>
-            </div>
-            <div className="p-4 bg-white border border-gray-200 rounded-lg shadow-sm">
-              <p className="text-xs font-semibold text-gray-500 uppercase">Average ML Confidence</p>
-              <h3 className="text-2xl font-bold text-gray-900 mt-1">
-                {(
-                  (auditLogs.reduce((acc, log) => acc + (log.confidence_score || 0), 0) /
-                    (auditLogs.length || 1)) *
-                  100
-                ).toFixed(0)}%
-              </h3>
-              <p className="text-xs text-gray-500 mt-1">Strategy confidence rating by LLM</p>
-            </div>
+          <div
+            className="animate-fade-up-1"
+            style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 16, marginBottom: 32 }}
+          >
+            {[
+              {
+                label: "Features Engineered",
+                value: auditLogs.length.toString(),
+                sub: "Column actions by RL agent",
+                color: "#6366f1",
+              },
+              {
+                label: "Leakage Risk",
+                value: dataset.leakage_report?.has_leakage ? "High" : "Zero",
+                sub: `Score: ${((dataset.leakage_report?.leakage_risk_score || 0) * 100).toFixed(0)}%`,
+                color: dataset.leakage_report?.has_leakage ? "#ef4444" : "#10b981",
+              },
+              {
+                label: "Avg ML Confidence",
+                value: `${avgConfidence.toFixed(0)}%`,
+                sub: "Strategy confidence by LLM",
+                color: "#8b5cf6",
+              },
+            ].map((stat) => (
+              <div
+                key={stat.label}
+                className="stat-card"
+                style={{ "--accent": stat.color } as React.CSSProperties}
+              >
+                <style>{`.stat-card::after { background: ${stat.color} !important; }`}</style>
+                <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", color: "var(--text-muted)", textTransform: "uppercase", marginBottom: 8 }}>
+                  {stat.label}
+                </p>
+                <p style={{ fontSize: 32, fontWeight: 800, letterSpacing: "-0.04em", color: stat.color, marginBottom: 4 }}>
+                  {stat.value}
+                </p>
+                <p style={{ fontSize: 12, color: "var(--text-muted)" }}>{stat.sub}</p>
+              </div>
+            ))}
           </div>
         )}
 
+        {/* Run Preprocessing — when profiled */}
         {dataset.status === "profiled" && (
-          <div className="mb-8 p-6 border border-purple-200 rounded-lg bg-purple-50">
-            <h2 className="text-xl font-semibold mb-2 text-purple-900">
-              Run AI Preprocessing Search Agent
-            </h2>
-            <p className="text-sm text-purple-700 mb-4">
-              Your dataset has been successfully profiled. Select the target variable column (predictive label) to launch the Reinforcement Learning agent pipeline.
-            </p>
-            <div className="flex gap-4 items-end flex-wrap">
-              <div className="flex-1 min-w-[200px]">
-                <label className="block text-xs font-semibold text-purple-900 uppercase mb-2">
+          <div
+            className="animate-fade-up-1 glass-card"
+            style={{
+              padding: 28,
+              marginBottom: 32,
+              background: "rgba(139,92,246,0.05)",
+              border: "1px solid rgba(139,92,246,0.2)",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+              <span style={{ fontSize: 24 }}>🤖</span>
+              <div>
+                <h2 style={{ fontSize: 17, fontWeight: 700 }}>Run AI Preprocessing Agent</h2>
+                <p style={{ fontSize: 13, color: "var(--text-secondary)" }}>
+                  Select the target variable to launch the RL pipeline
+                </p>
+              </div>
+            </div>
+            <div style={{ display: "flex", gap: 12, alignItems: "flex-end", flexWrap: "wrap" }}>
+              <div style={{ flex: 1, minWidth: 200 }}>
+                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>
                   Target Column
                 </label>
                 <select
-                  value={selectedTargetColumn}
-                  onChange={(e) => setSelectedTargetColumn(e.target.value)}
-                  className="w-full p-2 border border-purple-300 rounded bg-white text-sm"
+                  value={targetColumn}
+                  onChange={(e) => setTargetColumn(e.target.value)}
+                  className="select-field"
                 >
-                  <option value="">-- Select target variable --</option>
+                  <option value="">— Select target variable —</option>
                   {columns.map((col) => (
-                    <option key={col} value={col}>
-                      {col}
-                    </option>
+                    <option key={col} value={col}>{col}</option>
                   ))}
                 </select>
               </div>
               <button
-                onClick={async () => {
-                  if (!selectedTargetColumn) return alert("Please select a target column");
-                  setTriggering(true);
-                  try {
-                    await runPreprocessing(id, selectedTargetColumn);
-                    alert("Reinforcement learning preprocessing pipeline triggered!");
-                    window.location.reload();
-                  } catch (err) {
-                    alert("Failed to queue preprocessing task");
-                  } finally {
-                    setTriggering(false);
-                  }
-                }}
-                disabled={triggering || !selectedTargetColumn}
-                className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white font-medium rounded text-sm disabled:opacity-50"
+                onClick={handleTrigger}
+                disabled={triggering || !targetColumn}
+                className="btn-primary"
+                style={{ padding: "10px 24px" }}
               >
-                {triggering ? "Starting Agent..." : "Run AI Preprocessing"}
+                {triggering ? "⏳ Starting…" : "🚀 Run AI Preprocessing"}
               </button>
             </div>
           </div>
         )}
 
+        {/* Leakage Report — when done */}
         {dataset.status === "done" && dataset.leakage_report && (
-          <>
-            <div className="mb-6 p-4 border rounded bg-gray-50">
-              <h2 className="text-xl font-semibold mb-2">
-                Data Leakage Assessment
-              </h2>
-              <div className="flex items-center gap-2 mb-2">
-                <span
-                  className={`text-lg font-bold ${
-                    dataset.leakage_report.has_leakage
-                      ? "text-red-600"
-                      : "text-green-600"
-                  }`}
-                >
-                  {dataset.leakage_report.has_leakage
-                    ? "Leakage Detected"
-                    : "Zero Leakage Verified"}
-                </span>
-                <span className="text-sm text-gray-500">
-                  (Risk: {(dataset.leakage_report.leakage_risk_score * 100).toFixed(0)}%)
-                </span>
-              </div>
+          <div
+            className="animate-fade-up-2 glass-card"
+            style={{
+              padding: 24,
+              marginBottom: 32,
+              background: dataset.leakage_report.has_leakage
+                ? "rgba(239,68,68,0.04)"
+                : "rgba(16,185,129,0.04)",
+              border: `1px solid ${dataset.leakage_report.has_leakage ? "rgba(239,68,68,0.2)" : "rgba(16,185,129,0.2)"}`,
+            }}
+          >
+            <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 12, display: "flex", alignItems: "center", gap: 8 }}>
+              <span>{dataset.leakage_report.has_leakage ? "⚠️" : "🛡️"}</span>
+              Data Leakage Assessment
+            </h2>
+            <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
+              <span style={{ fontSize: 18, fontWeight: 800, color: dataset.leakage_report.has_leakage ? "#f87171" : "#34d399" }}>
+                {dataset.leakage_report.has_leakage ? "Leakage Detected" : "Zero Leakage Verified"}
+              </span>
+              <span style={{ fontSize: 13, color: "var(--text-muted)" }}>
+                Risk Score: {(dataset.leakage_report.leakage_risk_score * 100).toFixed(0)}%
+              </span>
               {dataset.leakage_report.leaking_columns.length > 0 && (
-                <div className="text-sm">
-                  <span className="font-medium">Leaking columns: </span>
-                  {dataset.leakage_report.leaking_columns.join(", ")}
-                </div>
+                <span style={{ fontSize: 13, color: "var(--text-secondary)" }}>
+                  Leaking: {dataset.leakage_report.leaking_columns.join(", ")}
+                </span>
               )}
             </div>
-          </>
+          </div>
         )}
 
-        <h2 className="text-xl font-semibold mb-4">Audit Trail</h2>
+        {/* Audit Trail */}
+        <div className="animate-fade-up-3">
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+            <h2 style={{ fontSize: 20, fontWeight: 700, letterSpacing: "-0.02em" }}>
+              Audit Trail
+              {auditLogs.length > 0 && (
+                <span
+                  style={{
+                    marginLeft: 10,
+                    padding: "2px 10px",
+                    background: "rgba(99,102,241,0.12)",
+                    border: "1px solid rgba(99,102,241,0.2)",
+                    borderRadius: 100,
+                    fontSize: 13,
+                    color: "#a5b4fc",
+                    fontWeight: 600,
+                  }}
+                >
+                  {auditLogs.length}
+                </span>
+              )}
+            </h2>
+          </div>
 
-        {auditLogs.length === 0 && (
-          <p className="text-gray-500">No preprocessing actions recorded yet.</p>
-        )}
+          {auditLogs.length === 0 ? (
+            <div
+              style={{
+                padding: "40px 24px",
+                textAlign: "center",
+                border: "2px dashed var(--border-color)",
+                borderRadius: 16,
+              }}
+            >
+              <div style={{ fontSize: 36, marginBottom: 12 }}>📋</div>
+              <p style={{ fontSize: 14, color: "var(--text-secondary)" }}>
+                No preprocessing actions recorded yet.
+                {dataset.status === "profiled" && " Run the AI agent above to generate audit logs."}
+              </p>
+            </div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              {auditLogs.map((log, i) => (
+                <div
+                  key={log.id}
+                  className="audit-item"
+                  style={{ animationDelay: `${i * 0.04}s` }}
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12, marginBottom: 12 }}>
+                    <div>
+                      <p style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>{log.column_name}</p>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                        <span
+                          style={{
+                            padding: "3px 10px",
+                            background: "rgba(239,68,68,0.08)",
+                            border: "1px solid rgba(239,68,68,0.15)",
+                            borderRadius: 6,
+                            fontSize: 12,
+                            color: "#f87171",
+                            fontWeight: 500,
+                          }}
+                        >
+                          {log.issue_detected}
+                        </span>
+                        <span style={{ color: "var(--text-muted)", fontSize: 14 }}>→</span>
+                        <span
+                          style={{
+                            padding: "3px 10px",
+                            background: "rgba(16,185,129,0.08)",
+                            border: "1px solid rgba(16,185,129,0.15)",
+                            borderRadius: 6,
+                            fontSize: 12,
+                            color: "#34d399",
+                            fontWeight: 500,
+                          }}
+                        >
+                          {log.strategy_chosen}
+                        </span>
+                      </div>
+                    </div>
+                    <div style={{ textAlign: "right" }}>
+                      {log.confidence_score != null && (
+                        <div
+                          style={{
+                            fontSize: 20,
+                            fontWeight: 800,
+                            letterSpacing: "-0.03em",
+                            color: log.confidence_score >= 0.8 ? "#34d399" : log.confidence_score >= 0.6 ? "#fbbf24" : "#f87171",
+                          }}
+                        >
+                          {(log.confidence_score * 100).toFixed(0)}%
+                        </div>
+                      )}
+                      {log.accuracy_delta !== 0 && (
+                        <div
+                          style={{
+                            fontSize: 12,
+                            color: log.accuracy_delta > 0 ? "#34d399" : "#f87171",
+                            fontWeight: 600,
+                          }}
+                        >
+                          {log.accuracy_delta > 0 ? "+" : ""}{log.accuracy_delta.toFixed(3)} Δ
+                        </div>
+                      )}
+                    </div>
+                  </div>
 
-        <div className="space-y-4">
-          {auditLogs.map((log) => (
-            <div key={log.id} className="p-4 border border-gray-200 rounded">
-              <div className="flex justify-between items-start mb-2">
-                <div>
-                  <p className="font-medium">{log.column_name}</p>
-                  <p className="text-sm text-gray-600">
-                    {log.issue_detected} → {log.strategy_chosen}
-                  </p>
-                </div>
-                <div className="text-right">
-                  <span className="text-sm font-medium">
-                    {log.confidence_score
-                      ? `${(log.confidence_score * 100).toFixed(0)}% confidence`
-                      : "—"}
-                  </span>
-                  {log.accuracy_delta !== 0 && (
-                    <p
-                      className={`text-sm ${
-                        log.accuracy_delta > 0 ? "text-green-600" : "text-red-600"
-                      }`}
-                    >
-                      {log.accuracy_delta > 0 ? "+" : ""}
-                      {log.accuracy_delta.toFixed(3)}
+                  {log.reason && (
+                    <p style={{ fontSize: 13, color: "var(--text-secondary)", lineHeight: 1.6, marginBottom: 16, paddingLeft: 1 }}>
+                      {log.reason}
                     </p>
                   )}
-                </div>
-              </div>
-              {log.reason && (
-                <p className="text-gray-700 text-sm mt-2">{log.reason}</p>
-              )}
 
-              <div className="mt-4 pt-4 border-t border-gray-100 flex gap-4 items-end flex-wrap">
-                <div className="flex-1 min-w-[200px]">
-                  <label className="block text-xs font-semibold text-gray-500 uppercase mb-2">
-                    Override Action Strategy (Human Feedback)
-                  </label>
-                  <select
-                    value={selectedCorrections[log.id] || ""}
-                    onChange={(e) =>
-                      setSelectedCorrections((prev) => ({
-                        ...prev,
-                        [log.id]: e.target.value,
-                      }))
-                    }
-                    className="w-full p-1.5 border border-gray-300 rounded text-xs bg-white"
+                  {/* Feedback */}
+                  <div
+                    style={{
+                      paddingTop: 14,
+                      borderTop: "1px solid var(--border-color)",
+                      display: "flex",
+                      gap: 10,
+                      alignItems: "flex-end",
+                      flexWrap: "wrap",
+                    }}
                   >
-                    <option value="">-- Propose correction strategy --</option>
-                    <optgroup label="Imputation">
-                      <option value="imputation:mean">imputation:mean</option>
-                      <option value="imputation:median">imputation:median</option>
-                    </optgroup>
-                    <optgroup label="Encoding">
-                      <option value="encoding:onehot">encoding:onehot</option>
-                      <option value="encoding:frequency">encoding:frequency</option>
-                    </optgroup>
-                    <optgroup label="Scaling">
-                      <option value="scaling:standard">scaling:standard</option>
-                      <option value="scaling:robust">scaling:robust</option>
-                    </optgroup>
-                    <optgroup label="Outlier">
-                      <option value="outlier:clip_iqr">outlier:clip_iqr</option>
-                    </optgroup>
-                  </select>
+                    <div style={{ flex: 1, minWidth: 200 }}>
+                      <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>
+                        Override Strategy (Human Feedback)
+                      </label>
+                      <select
+                        value={corrections[log.id] || ""}
+                        onChange={(e) => setCorrections((p) => ({ ...p, [log.id]: e.target.value }))}
+                        className="select-field"
+                        style={{ fontSize: 13 }}
+                      >
+                        <option value="">— Propose correction —</option>
+                        {CORRECTION_OPTIONS.map((group) => (
+                          <optgroup key={group.group} label={group.group}>
+                            {group.options.map((opt) => (
+                              <option key={opt.value} value={opt.value}>{opt.label}</option>
+                            ))}
+                          </optgroup>
+                        ))}
+                      </select>
+                    </div>
+                    <button
+                      onClick={() => handleFeedback(log.id, log.strategy_chosen)}
+                      disabled={submitting[log.id] || !corrections[log.id]}
+                      className="btn-secondary"
+                      style={{ fontSize: 13, padding: "9px 18px" }}
+                    >
+                      {submitting[log.id] ? "Saving…" : "Submit Correction"}
+                    </button>
+                  </div>
+
+                  {(() => {
+                    const msg = feedbackMsg[log.id];
+                    if (!msg) return null;
+                    return (
+                      <div
+                        style={{
+                          marginTop: 10,
+                          padding: "8px 14px",
+                          borderRadius: 8,
+                          fontSize: 13,
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 6,
+                          background: msg.type === "success" ? "rgba(16,185,129,0.08)" : "rgba(239,68,68,0.08)",
+                          border: `1px solid ${msg.type === "success" ? "rgba(16,185,129,0.2)" : "rgba(239,68,68,0.2)"}`,
+                          color: msg.type === "success" ? "#34d399" : "#f87171",
+                        }}
+                      >
+                        {msg.type === "success" ? "✓" : "⚠"} {msg.text}
+                      </div>
+                    );
+                  })()}
                 </div>
-                <button
-                  onClick={() => handleFeedbackSubmit(log.id, log.strategy_chosen)}
-                  disabled={correctionsSubmitting[log.id] || !selectedCorrections[log.id]}
-                  className="px-3 py-1.5 bg-gray-800 hover:bg-gray-900 text-white rounded text-xs font-medium disabled:opacity-50"
-                >
-                  {correctionsSubmitting[log.id] ? "Submitting..." : "Submit Correction"}
-                </button>
-              </div>
+              ))}
             </div>
-          ))}
+          )}
         </div>
       </div>
     </div>
