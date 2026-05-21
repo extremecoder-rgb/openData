@@ -1,0 +1,25 @@
+{
+  "$schema": "https://railway.app/railway.schema.json",
+  "services": {
+    "api": {
+      "watchPatterns": ["preprocessing-engine/apps/api/**", "preprocessing-engine/packages/**"],
+      "build": {
+        "builder": "DOCKERFILE",
+        "dockerfilePath": "preprocessing-engine/apps/api/Dockerfile"
+      }
+    },
+    "ai": {
+      "watchPatterns": ["preprocessing-engine/services/ai/**"],
+      "build": {
+        "builder": "DOCKERFILE",
+        "dockerfilePath": "preprocessing-engine/services/ai/Dockerfile"
+      }
+    },
+    "web": {
+      "watchPatterns": ["preprocessing-engine/apps/web/**", "preprocessing-engine/packages/**"],
+      "build": {
+        "builder": "NIXPACKS"
+      }
+    }
+  }
+}
