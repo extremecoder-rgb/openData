@@ -12,7 +12,7 @@ export interface Dataset {
   updated_at: string;
 }
 
-export type DatasetStatus = "uploaded" | "profiling" | "processing" | "done" | "failed";
+export type DatasetStatus = "uploaded" | "profiling" | "profiled" | "processing" | "done" | "failed";
 
 export interface AuditLog {
   id: string;

@@ -5,7 +5,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 export interface Dataset {
   id: string;
   filename: string;
-  status: "uploaded" | "profiling" | "processing" | "done" | "failed";
+  status: "uploaded" | "profiling" | "profiled" | "processing" | "done" | "failed";
   row_count: number | null;
   column_count: number | null;
   leakage_report: LeakageReport | null;
