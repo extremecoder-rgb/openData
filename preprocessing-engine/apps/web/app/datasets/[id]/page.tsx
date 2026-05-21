@@ -28,6 +28,34 @@ export default function DatasetDetail() {
   const [columns, setColumns] = useState<string[]>([]);
   const [selectedTargetColumn, setSelectedTargetColumn] = useState("");
   const [triggering, setTriggering] = useState(false);
+  const [correctionsSubmitting, setCorrectionsSubmitting] = useState<Record<string, boolean>>({});
+  const [selectedCorrections, setSelectedCorrections] = useState<Record<string, string>>({});
+
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+
+  const handleFeedbackSubmit = async (auditLogId: string, originalStrategy: string) => {
+    const correctedStrategy = selectedCorrections[auditLogId];
+    if (!correctedStrategy) return alert("Please select a correction first");
+
+    setCorrectionsSubmitting(prev => ({ ...prev, [auditLogId]: true }));
+    try {
+      const res = await fetch(`${API_URL}/datasets/${id}/feedback`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          auditLogId,
+          originalStrategy,
+          correctedStrategy,
+        }),
+      });
+      if (!res.ok) throw new Error("Failed to submit feedback");
+      alert("Feedback saved! XGBoost policy will now align with your choice next time.");
+    } catch (err) {
+      alert("Failed to submit feedback: " + (err as Error).message);
+    } finally {
+      setCorrectionsSubmitting(prev => ({ ...prev, [auditLogId]: false }));
+    }
+  };
 
   const handleDownload = async () => {
     setDownloading(true);
@@ -229,6 +257,48 @@ export default function DatasetDetail() {
               {log.reason && (
                 <p className="text-gray-700 text-sm mt-2">{log.reason}</p>
               )}
+
+              <div className="mt-4 pt-4 border-t border-gray-100 flex gap-4 items-end flex-wrap">
+                <div className="flex-1 min-w-[200px]">
+                  <label className="block text-xs font-semibold text-gray-500 uppercase mb-2">
+                    Override Action Strategy (Human Feedback)
+                  </label>
+                  <select
+                    value={selectedCorrections[log.id] || ""}
+                    onChange={(e) =>
+                      setSelectedCorrections((prev) => ({
+                        ...prev,
+                        [log.id]: e.target.value,
+                      }))
+                    }
+                    className="w-full p-1.5 border border-gray-300 rounded text-xs bg-white"
+                  >
+                    <option value="">-- Propose correction strategy --</option>
+                    <optgroup label="Imputation">
+                      <option value="imputation:mean">imputation:mean</option>
+                      <option value="imputation:median">imputation:median</option>
+                    </optgroup>
+                    <optgroup label="Encoding">
+                      <option value="encoding:onehot">encoding:onehot</option>
+                      <option value="encoding:frequency">encoding:frequency</option>
+                    </optgroup>
+                    <optgroup label="Scaling">
+                      <option value="scaling:standard">scaling:standard</option>
+                      <option value="scaling:robust">scaling:robust</option>
+                    </optgroup>
+                    <optgroup label="Outlier">
+                      <option value="outlier:clip_iqr">outlier:clip_iqr</option>
+                    </optgroup>
+                  </select>
+                </div>
+                <button
+                  onClick={() => handleFeedbackSubmit(log.id, log.strategy_chosen)}
+                  disabled={correctionsSubmitting[log.id] || !selectedCorrections[log.id]}
+                  className="px-3 py-1.5 bg-gray-800 hover:bg-gray-900 text-white rounded text-xs font-medium disabled:opacity-50"
+                >
+                  {correctionsSubmitting[log.id] ? "Submitting..." : "Submit Correction"}
+                </button>
+              </div>
             </div>
           ))}
         </div>
