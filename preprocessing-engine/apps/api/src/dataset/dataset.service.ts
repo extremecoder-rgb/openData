@@ -136,4 +136,38 @@ export class DatasetService {
 
     this.logger.log(`Queued RL preprocessing for dataset: ${id} with target: ${targetColumn}`);
   }
+
+  async saveUserCorrection(
+    auditLogId: string,
+    originalStrategy: string,
+    correctedStrategy: string,
+  ): Promise<void> {
+    const { error } = await this.supabase
+      .from('user_corrections')
+      .insert({
+        audit_log_id: auditLogId,
+        original_strategy: originalStrategy,
+        corrected_strategy: correctedStrategy,
+      });
+
+    if (error) {
+      this.logger.error(`Failed to save user correction for audit log ${auditLogId}:`, error);
+      throw new Error(`Failed to save correction: ${error.message}`);
+    }
+
+    try {
+      const aiServiceUrl = this.configService.getOrThrow<string>('AI_SERVICE_URL');
+      await fetch(`${aiServiceUrl}/learn`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          audit_log_id: auditLogId,
+          original_strategy: originalStrategy,
+          corrected_strategy: correctedStrategy,
+        }),
+      });
+    } catch (learnErr) {
+      this.logger.warn(`Failed to propagate feedback to AI learning service: ${learnErr.message}`);
+    }
+  }
 }

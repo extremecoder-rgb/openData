@@ -54,4 +54,17 @@ export class DatasetController {
     }
     return results;
   }
+
+  @Post(':id/feedback')
+  async saveUserCorrection(
+    @Body('auditLogId') auditLogId: string,
+    @Body('originalStrategy') originalStrategy: string,
+    @Body('correctedStrategy') correctedStrategy: string,
+  ): Promise<{ success: boolean }> {
+    if (!auditLogId || !originalStrategy || !correctedStrategy) {
+      throw new NotFoundException('auditLogId, originalStrategy, and correctedStrategy are required');
+    }
+    await this.datasetService.saveUserCorrection(auditLogId, originalStrategy, correctedStrategy);
+    return { success: true };
+  }
 }

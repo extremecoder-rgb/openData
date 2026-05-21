@@ -137,3 +137,41 @@ async def preprocess(req: PreprocessRequest):
         except Exception:
             pass
         raise HTTPException(status_code=500, detail=str(e))
+
+
+class LearnRequest(BaseModel):
+    audit_log_id: str
+    original_strategy: str
+    corrected_strategy: str
+
+
+@app.post("/learn")
+async def learn(req: LearnRequest):
+    try:
+        import os
+        import json
+
+        corrections_dir = os.path.join(os.path.dirname(__file__), "data")
+        os.makedirs(corrections_dir, exist_ok=True)
+        corrections_file = os.path.join(corrections_dir, "corrections.jsonl")
+
+        correction_entry = {
+            "audit_log_id": req.audit_log_id,
+            "original_strategy": req.original_strategy,
+            "corrected_strategy": req.corrected_strategy,
+        }
+
+        with open(corrections_file, "a") as f:
+            f.write(json.dumps(correction_entry) + "\n")
+
+        logger.info(f"Learned correction recorded: audit_log={req.audit_log_id}")
+
+        try:
+            from app.rl_agent.policy_trainer import train_policy_from_corrections
+            train_policy_from_corrections()
+        except Exception as trainer_err:
+            logger.warning(f"Failed to run policy trainer: {trainer_err}")
+
+        return {"status": "success"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
