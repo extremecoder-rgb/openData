@@ -72,3 +72,19 @@ export async function uploadDataset(file: File): Promise<Dataset> {
   if (!res.ok) throw new Error("Failed to upload file");
   return res.json();
 }
+
+export async function getDatasetColumns(id: string): Promise<string[]> {
+  const res = await fetch(`${API_URL}/datasets/${id}/columns`);
+  if (!res.ok) throw new Error("Failed to fetch dataset columns");
+  return res.json();
+}
+
+export async function runPreprocessing(id: string, targetColumn: string): Promise<{ message: string }> {
+  const res = await fetch(`${API_URL}/datasets/${id}/preprocess`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ targetColumn }),
+  });
+  if (!res.ok) throw new Error("Failed to queue preprocessing task");
+  return res.json();
+}

@@ -10,6 +10,7 @@ import { Uploader } from "../../components/Uploader";
 const statusColors: Record<string, string> = {
   uploaded: "bg-yellow-100 text-yellow-800",
   profiling: "bg-blue-100 text-blue-800",
+  profiled: "bg-purple-100 text-purple-800",
   processing: "bg-blue-100 text-blue-800",
   done: "bg-green-100 text-green-800",
   failed: "bg-red-100 text-red-800",

@@ -5,11 +5,12 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { getDatasetResults, downloadComplianceReport, type Dataset, type AuditLog, type LeakageReport } from "../../../lib/api";
+import { getDatasetResults, downloadComplianceReport, getDatasetColumns, runPreprocessing, type Dataset, type AuditLog, type LeakageReport } from "../../../lib/api";
 
 const statusColors: Record<string, string> = {
   uploaded: "bg-yellow-100 text-yellow-800",
   profiling: "bg-blue-100 text-blue-800",
+  profiled: "bg-purple-100 text-purple-800",
   processing: "bg-blue-100 text-blue-800",
   done: "bg-green-100 text-green-800",
   failed: "bg-red-100 text-red-800",
@@ -24,6 +25,9 @@ export default function DatasetDetail() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [downloading, setDownloading] = useState(false);
+  const [columns, setColumns] = useState<string[]>([]);
+  const [selectedTargetColumn, setSelectedTargetColumn] = useState("");
+  const [triggering, setTriggering] = useState(false);
 
   const handleDownload = async () => {
     setDownloading(true);
@@ -52,6 +56,14 @@ export default function DatasetDetail() {
       .finally(() => setLoading(false));
   }, [id]);
 
+  useEffect(() => {
+    if (dataset && dataset.status === "profiled") {
+      getDatasetColumns(id)
+        .then(setColumns)
+        .catch(console.error);
+    }
+  }, [dataset, id]);
+
   if (loading) return <div className="p-8">Loading...</div>;
   if (error) return <div className="p-8 text-red-600">Error: {error}</div>;
   if (!dataset) return <div className="p-8">Dataset not found</div>;
@@ -65,13 +77,13 @@ export default function DatasetDetail() {
 
         <h1 className="text-3xl font-bold mb-2">{dataset.filename}</h1>
         <p className="text-gray-500 mb-6">
-          {dataset.row_count} rows × {dataset.column_count} columns • Created{" "}
+          {dataset.row_count || 0} rows × {dataset.column_count || 0} columns • Created{" "}
           {new Date(dataset.created_at).toLocaleDateString()}
         </p>
 
         <div className="mb-6 flex items-center gap-4 flex-wrap">
           <span
-            className={`px-3 py-1 rounded-full text-sm ${
+            className={`px-3 py-1 rounded-full text-sm font-medium ${
               statusColors[dataset.status] || "bg-gray-100"
             }`}
           >
@@ -98,6 +110,55 @@ export default function DatasetDetail() {
             {downloading ? "Generating..." : "Download Compliance PDF"}
           </button>
         </div>
+
+        {dataset.status === "profiled" && (
+          <div className="mb-8 p-6 border border-purple-200 rounded-lg bg-purple-50">
+            <h2 className="text-xl font-semibold mb-2 text-purple-900">
+              Run AI Preprocessing Search Agent
+            </h2>
+            <p className="text-sm text-purple-700 mb-4">
+              Your dataset has been successfully profiled. Select the target variable column (predictive label) to launch the Reinforcement Learning agent pipeline.
+            </p>
+            <div className="flex gap-4 items-end flex-wrap">
+              <div className="flex-1 min-w-[200px]">
+                <label className="block text-xs font-semibold text-purple-900 uppercase mb-2">
+                  Target Column
+                </label>
+                <select
+                  value={selectedTargetColumn}
+                  onChange={(e) => setSelectedTargetColumn(e.target.value)}
+                  className="w-full p-2 border border-purple-300 rounded bg-white text-sm"
+                >
+                  <option value="">-- Select target variable --</option>
+                  {columns.map((col) => (
+                    <option key={col} value={col}>
+                      {col}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <button
+                onClick={async () => {
+                  if (!selectedTargetColumn) return alert("Please select a target column");
+                  setTriggering(true);
+                  try {
+                    await runPreprocessing(id, selectedTargetColumn);
+                    alert("Reinforcement learning preprocessing pipeline triggered!");
+                    window.location.reload();
+                  } catch (err) {
+                    alert("Failed to queue preprocessing task");
+                  } finally {
+                    setTriggering(false);
+                  }
+                }}
+                disabled={triggering || !selectedTargetColumn}
+                className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white font-medium rounded text-sm disabled:opacity-50"
+              >
+                {triggering ? "Starting Agent..." : "Run AI Preprocessing"}
+              </button>
+            </div>
+          </div>
+        )}
 
         {dataset.status === "done" && dataset.leakage_report && (
           <>

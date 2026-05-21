@@ -1,6 +1,8 @@
 /* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access */
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { InjectQueue } from '@nestjs/bull';
+import type { Queue } from 'bull';
 import { createClient } from '@supabase/supabase-js';
 
 export interface DatasetRow {
@@ -32,7 +34,10 @@ export class DatasetService {
   private readonly logger = new Logger(DatasetService.name);
   private readonly supabase;
 
-  constructor(private configService: ConfigService) {
+  constructor(
+    private configService: ConfigService,
+    @InjectQueue('preprocess') private preprocessQueue: Queue,
+  ) {
     const supabaseUrl = this.configService.getOrThrow<string>('SUPABASE_URL');
     let supabaseKey = this.configService.get<string>('SUPABASE_SERVICE_ROLE_KEY');
 
@@ -95,5 +100,40 @@ export class DatasetService {
       dataset,
       auditLogs: (auditLogs ?? []) as AuditLogRow[],
     };
+  }
+
+  async getDatasetColumns(id: string): Promise<string[]> {
+    const dataset = await this.getDataset(id);
+    const bucketName = this.configService.get<string>('SUPABASE_BUCKET_NAME') || 'datasets';
+    const { data, error } = await this.supabase.storage
+      .from(bucketName)
+      .download(dataset.r2_key);
+
+    if (error) {
+      this.logger.error(`Failed to download dataset ${id} from storage:`, error);
+      throw new Error(`Failed to download file from storage: ${error.message}`);
+    }
+
+    const csvContent = Buffer.from(await data.arrayBuffer()).toString('utf-8');
+    const firstLine = csvContent.split('\n')[0];
+    const columns = firstLine.split(',').map(c => c.trim().replace(/^"|"$/g, ''));
+    return columns.filter(c => c.length > 0);
+  }
+
+  async preprocessDataset(id: string, targetColumn: string): Promise<void> {
+    const dataset = await this.getDataset(id);
+    await this.supabase
+      .from('datasets')
+      .update({ status: 'processing', updated_at: new Date().toISOString() })
+      .eq('id', id);
+
+    await this.preprocessQueue.add('preprocess', {
+      datasetId: id,
+      r2Key: dataset.r2_key,
+      filename: dataset.filename,
+      targetColumn,
+    });
+
+    this.logger.log(`Queued RL preprocessing for dataset: ${id} with target: ${targetColumn}`);
   }
 }

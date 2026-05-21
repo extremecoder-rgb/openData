@@ -9,6 +9,7 @@ interface JobData {
   datasetId: string;
   r2Key: string;
   filename: string;
+  targetColumn?: string;
 }
 
 @Processor('preprocess')
@@ -25,9 +26,9 @@ export class PreprocessProcessor {
 
   @Process('preprocess')
   async handlePreprocess(job: Job<JobData>) {
-    const { datasetId, r2Key, filename } = job.data;
+    const { datasetId, r2Key, filename, targetColumn } = job.data;
     this.logger.log(
-      `Processing job for dataset: ${datasetId} (file: ${filename})`,
+      `Processing job for dataset: ${datasetId} (file: ${filename}, target: ${targetColumn || 'none'})`,
     );
 
     try {
@@ -40,35 +41,52 @@ export class PreprocessProcessor {
 
       const aiServiceUrl =
         this.configService.getOrThrow<string>('AI_SERVICE_URL');
-      this.logger.log(`Calling AI service at ${aiServiceUrl}/profile`);
 
-      const response = await fetch(`${aiServiceUrl}/profile`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ r2_key: r2Key, filename }),
-      });
+      if (targetColumn) {
+        this.logger.log(`Calling AI service at ${aiServiceUrl}/preprocess for RL search`);
+        const response = await fetch(`${aiServiceUrl}/preprocess`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ r2_key: r2Key, filename, target_column: targetColumn }),
+        });
 
-      if (!response.ok) {
-        throw new Error(
-          `AI service returned ${response.status}: ${await response.text()}`,
-        );
+        if (!response.ok) {
+          throw new Error(
+            `AI service returned ${response.status}: ${await response.text()}`,
+          );
+        }
+
+        this.logger.log(`Dataset ${datasetId} reinforcement learning preprocessing complete`);
+      } else {
+        this.logger.log(`Calling AI service at ${aiServiceUrl}/profile`);
+        const response = await fetch(`${aiServiceUrl}/profile`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ r2_key: r2Key, filename }),
+        });
+
+        if (!response.ok) {
+          throw new Error(
+            `AI service returned ${response.status}: ${await response.text()}`,
+          );
+        }
+
+        const profile = (await response.json()) as {
+          __dataset__?: { row_count?: number; col_count?: number };
+        };
+
+        await this.supabase
+          .from('datasets')
+          .update({
+            status: 'profiled',
+            row_count: profile?.__dataset__?.row_count ?? null,
+            column_count: profile?.__dataset__?.col_count ?? null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', datasetId);
+
+        this.logger.log(`Dataset ${datasetId} profiling complete -> status: profiled`);
       }
-
-      const profile = (await response.json()) as {
-        dataset?: { row_count?: number; col_count?: number };
-      };
-
-      await this.supabase
-        .from('datasets')
-        .update({
-          status: 'done',
-          row_count: profile?.dataset?.row_count ?? null,
-          column_count: profile?.dataset?.col_count ?? null,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', datasetId);
-
-      this.logger.log(`Dataset ${datasetId} processing complete`);
 
       return { success: true, datasetId };
     } catch (error) {

@@ -1,4 +1,4 @@
-import { Controller, Get, Param, NotFoundException } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, NotFoundException } from '@nestjs/common';
 import {
   DatasetService,
   type DatasetRow,
@@ -21,6 +21,27 @@ export class DatasetController {
       throw new NotFoundException('Dataset not found');
     }
     return dataset;
+  }
+
+  @Get(':id/columns')
+  async getDatasetColumns(@Param('id') id: string): Promise<string[]> {
+    const columns = await this.datasetService.getDatasetColumns(id);
+    if (!columns) {
+      throw new NotFoundException('Dataset columns not found');
+    }
+    return columns;
+  }
+
+  @Post(':id/preprocess')
+  async preprocessDataset(
+    @Param('id') id: string,
+    @Body('targetColumn') targetColumn: string,
+  ): Promise<{ message: string }> {
+    if (!targetColumn) {
+      throw new NotFoundException('targetColumn is required');
+    }
+    await this.datasetService.preprocessDataset(id, targetColumn);
+    return { message: 'Preprocessing task has been queued successfully' };
   }
 
   @Get(':id/results')
