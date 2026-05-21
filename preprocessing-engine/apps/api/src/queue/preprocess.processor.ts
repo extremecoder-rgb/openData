@@ -47,7 +47,7 @@ export class PreprocessProcessor {
         const response = await fetch(`${aiServiceUrl}/preprocess`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ r2_key: r2Key, filename, target_column: targetColumn }),
+          body: JSON.stringify({ r2_key: r2Key, filename, target_column: targetColumn, dataset_id: datasetId }),
         });
 
         if (!response.ok) {
@@ -62,7 +62,7 @@ export class PreprocessProcessor {
         const response = await fetch(`${aiServiceUrl}/profile`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ r2_key: r2Key, filename }),
+          body: JSON.stringify({ r2_key: r2Key, filename, dataset_id: datasetId }),
         });
 
         if (!response.ok) {

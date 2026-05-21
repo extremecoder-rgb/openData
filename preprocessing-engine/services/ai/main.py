@@ -35,12 +35,14 @@ app = FastAPI(title="Preprocessing Engine AI Service", version="0.1.0", lifespan
 class ProfileRequest(BaseModel):
     r2_key: str
     filename: str
+    dataset_id: str
 
 
 class PreprocessRequest(BaseModel):
     r2_key: str
     filename: str
     target_column: str
+    dataset_id: str
 
 
 @app.get("/health")
@@ -56,7 +58,7 @@ async def root():
 @app.post("/profile")
 async def profile(req: ProfileRequest):
     supabase = get_supabase_client()
-    dataset_id = req.r2_key.split("/")[-1].split("-")[0]
+    dataset_id = req.dataset_id
     try:
         update_dataset_status(supabase, dataset_id, "profiling")
 
@@ -85,7 +87,7 @@ async def profile(req: ProfileRequest):
 async def preprocess(req: PreprocessRequest):
     try:
         supabase = get_supabase_client()
-        dataset_id = req.r2_key.split("/")[-1].split("-")[0]
+        dataset_id = req.dataset_id
 
         df = download_csv_from_storage(req.r2_key)
         meta_features = extract_meta_features(df)
@@ -130,10 +132,9 @@ async def preprocess(req: PreprocessRequest):
             "leakage_report": leakage_report,
         }
     except Exception as e:
-        dataset_id = req.r2_key.split("/")[-1].split("-")[0]
         try:
             supabase = get_supabase_client()
-            update_dataset_status(supabase, dataset_id, "failed")
+            update_dataset_status(supabase, req.dataset_id, "failed")
         except Exception:
             pass
         raise HTTPException(status_code=500, detail=str(e))
